@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>KAM Sentinel — Test Report</title>
+<style>
+  body { background:#07090d; color:#b8ccd8; font-family:'Courier New',monospace; font-size:13px; margin:0; padding:24px; }
+  h1 { color:#00ff88; letter-spacing:4px; font-size:1.1rem; margin-bottom:4px; }
+  .meta { color:#3d5166; font-size:.8rem; margin-bottom:20px; }
+  .summary { display:flex; gap:24px; margin-bottom:24px; padding:16px; background:#0c1018; border:1px solid #1a2535; border-radius:6px; }
+  .sum-item { text-align:center; }
+  .sum-num { font-size:2rem; font-weight:bold; }
+  .sum-label { font-size:.7rem; color:#3d5166; letter-spacing:2px; }
+  .pass-num { color:#00ff88; } .fail-num { color:#ff3d3d; } .warn-num { color:#ffd600; } .total-num { color:#b8ccd8; }
+  .status { font-size:1.2rem; font-weight:bold; color:#00ff88; margin-bottom:20px; letter-spacing:3px; }
+  table { width:100%; border-collapse:collapse; }
+  tr.section td { background:#111824; color:#00d4ff; padding:10px 8px 4px; font-size:.75rem; letter-spacing:3px; border-top:1px solid #1a2535; }
+  td { padding:5px 8px; border-bottom:1px solid #0c1018; }
+  td.icon { width:24px; text-align:center; }
+  .pass { color:#00ff88; } .fail { color:#ff3d3d; } .warn { color:#ffd600; }
+  tr:hover td { background:#0c1018; }
+</style></head><body>
+<h1>⬡ KAM SENTINEL — TEST REPORT</h1>
+<div class="meta">Generated: 2026-02-24 19:46:58 &nbsp;|&nbsp; v1.2 Phase 1</div>
+<div class="status">✓ ALL PASSED</div>
+<div class="summary">
+  <div class="sum-item"><div class="sum-num pass-num">55</div><div class="sum-label">PASSED</div></div>
+  <div class="sum-item"><div class="sum-num warn-num">0</div><div class="sum-label">WARNINGS</div></div>
+  <div class="sum-item"><div class="sum-num fail-num">0</div><div class="sum-label">FAILED</div></div>
+  <div class="sum-item"><div class="sum-num total-num">55</div><div class="sum-label">TOTAL</div></div>
+</div>
+<table><tr class="section"><td colspan="2">── 1. Import & Module Check</td></tr>
+<tr><td class="icon pass">✓</td><td>thresholds.py imports cleanly</td></tr>
+<tr><td class="icon pass">✓</td><td>psutil available (v7.2.2)</td></tr>
+<tr><td class="icon pass">✓</td><td>flask available (v3.1.3)</td></tr>
+<tr><td class="icon pass">✓</td><td>GPUtil available — GPU stats enabled</td></tr>
+<tr><td class="icon pass">✓</td><td>wmi available — CPU temp/voltage enabled</td></tr>
+<tr class="section"><td colspan="2">── 2. Threshold Engine</td></tr>
+<tr><td class="icon pass">✓</td><td>Generic threshold section 'cpu' present</td></tr>
+<tr><td class="icon pass">✓</td><td>Generic threshold section 'gpu' present</td></tr>
+<tr><td class="icon pass">✓</td><td>Generic threshold section 'voltage' present</td></tr>
+<tr><td class="icon pass">✓</td><td>Generic threshold section 'ram' present</td></tr>
+<tr><td class="icon pass">✓</td><td>Generic threshold section 'network' present</td></tr>
+<tr><td class="icon pass">✓</td><td>Ryzen 5000 TJmax detected correctly: 90°C</td></tr>
+<tr><td class="icon pass">✓</td><td>RTX 3080 GPU limit detected: 93°C</td></tr>
+<tr><td class="icon pass">✓</td><td>Threshold save/load round-trip correct</td></tr>
+<tr class="section"><td colspan="2">── 3. Memory Leak Detection</td></tr>
+<tr><td class="icon pass">✓</td><td>deque(maxlen=60) correctly bounded after 1000 inserts</td></tr>
+<tr><td class="icon pass">✓</td><td>server.py uses deque(maxlen=) for history buffers</td></tr>
+<tr><td class="icon pass">✓</td><td>No list.pop(0) calls found — O(1) operations confirmed</td></tr>
+<tr><td class="icon pass">✓</td><td>Log batching present — disk I/O not on every poll</td></tr>
+<tr><td class="icon pass">✓</td><td>Log rotation present — logs won't grow unbounded</td></tr>
+<tr class="section"><td colspan="2">── 4. Performance & Architecture</td></tr>
+<tr><td class="icon pass">✓</td><td>Background daemon thread present — Flask requests never block on hardware I/O</td></tr>
+<tr><td class="icon pass">✓</td><td>WMI result caching present — slow COM calls max once per 30s</td></tr>
+<tr><td class="icon pass">✓</td><td>cpu_percent(interval=0) — non-blocking delta measurement</td></tr>
+<tr><td class="icon pass">✓</td><td>Flask threaded=True — concurrent request handling enabled</td></tr>
+<tr><td class="icon pass">✓</td><td>Stat cache object present — Flask serves pre-computed data</td></tr>
+<tr><td class="icon pass">✓</td><td>cpu_percent(interval=0) returns in 0.1ms — non-blocking confirmed</td></tr>
+<tr class="section"><td colspan="2">── 5. Warning Engine Logic</td></tr>
+<tr><td class="icon pass">✓</td><td>CPU critical threshold fires at 95°C (limit: 90°C)</td></tr>
+<tr><td class="icon pass">✓</td><td>CPU OK temp 45°C correctly below warning threshold</td></tr>
+<tr><td class="icon pass">✓</td><td>GPU critical threshold fires at 96°C</td></tr>
+<tr><td class="icon pass">✓</td><td>RAM critical threshold fires at 94%</td></tr>
+<tr><td class="icon pass">✓</td><td>RAM OK at 30% correctly below warning</td></tr>
+<tr class="section"><td colspan="2">── 6. File Structure & Safety</td></tr>
+<tr><td class="icon pass">✓</td><td>server.py present</td></tr>
+<tr><td class="icon pass">✓</td><td>thresholds.py present</td></tr>
+<tr><td class="icon pass">✓</td><td>dashboard.html present</td></tr>
+<tr><td class="icon pass">✓</td><td>launch.py present</td></tr>
+<tr><td class="icon pass">✓</td><td>build_exe.bat present</td></tr>
+<tr><td class="icon pass">✓</td><td>setup.bat present</td></tr>
+<tr><td class="icon pass">✓</td><td>CLAUDE.md present</td></tr>
+<tr><td class="icon pass">✓</td><td>Original profile backup is skip-if-exists (never overwritten)</td></tr>
+<tr><td class="icon pass">✓</td><td>Flask debug=False — production safe</td></tr>
+<tr><td class="icon pass">✓</td><td>Version string found: v1.2</td></tr>
+<tr class="section"><td colspan="2">── 7. Live Hardware Reading</td></tr>
+<tr><td class="icon pass">✓</td><td>CPU usage readable: 2.4%</td></tr>
+<tr><td class="icon pass">✓</td><td>RAM readable: 31.9 GB total, 34.7% used</td></tr>
+<tr><td class="icon pass">✓</td><td>Network counters readable: 429.5 MB sent</td></tr>
+<tr><td class="icon pass">✓</td><td>10x poll cycle avg: 5.18ms — excellent performance</td></tr>
+<tr class="section"><td colspan="2">── 8. Dashboard HTML Checks</td></tr>
+<tr><td class="icon pass">✓</td><td>Concept 2 SVG logo</td></tr>
+<tr><td class="icon pass">✓</td><td>Overlay HTML present</td></tr>
+<tr><td class="icon pass">✓</td><td>Overlay toggle button</td></tr>
+<tr><td class="icon pass">✓</td><td>Refresh rate selector</td></tr>
+<tr><td class="icon pass">✓</td><td>updateRefreshRate func</td></tr>
+<tr><td class="icon pass">✓</td><td>DOM cache object</td></tr>
+<tr><td class="icon pass">✓</td><td>Single API fetch</td></tr>
+<tr><td class="icon pass">✓</td><td>Warning panel present</td></tr>
+<tr><td class="icon pass">✓</td><td>Settings modal present</td></tr>
+<tr><td class="icon pass">✓</td><td>Chart.js loaded</td></tr>
+<tr><td class="icon pass">✓</td><td>Goal 10 update check</td></tr>
+<tr><td class="icon pass">✓</td><td>Overlay drag support</td></tr>
+</table>
+</body></html>

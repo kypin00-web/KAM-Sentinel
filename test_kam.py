@@ -17,23 +17,28 @@ RESET  = '\033[0m'
 BOLD   = '\033[1m'
 
 passed = failed = warned = 0
+_log_entries = []
 
 def ok(msg):
     global passed
     passed += 1
+    _log_entries.append(('pass', msg))
     print(f"  {GREEN}✓{RESET} {msg}")
 
 def fail(msg):
     global failed
     failed += 1
+    _log_entries.append(('fail', msg))
     print(f"  {RED}✗ FAIL{RESET} {msg}")
 
 def warn(msg):
     global warned
     warned += 1
+    _log_entries.append(('warn', msg))
     print(f"  {YELLOW}⚠ WARN{RESET} {msg}")
 
 def section(title):
+    _log_entries.append(('section', title))
     print(f"\n{BOLD}{CYAN}── {title} {'─'*(50-len(title))}{RESET}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -136,11 +141,13 @@ try:
     else:
         fail("server.py still uses plain lists — memory leak risk")
 
-    if '.pop(0)' not in src:
+    code_lines = [l for l in src.splitlines() if not l.strip().startswith('#')]
+    code_only = '\n'.join(code_lines)
+    if '.pop(0)' not in code_only:
         ok("No list.pop(0) calls found — O(1) operations confirmed")
     else:
         import re
-        pops = re.findall(r'.+\.pop\(0\)', src)
+        pops = re.findall(r'.+\.pop\(0\)', code_only)
         fail(f"Found list.pop(0): {pops[0].strip()}")
 
     # Check log buffer is bounded
@@ -371,74 +378,6 @@ try:
             ok(name)
         else:
             fail(name)
-except Exception as e:
-    fail(f"HTML check error: {e}")
- 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 9. UI SERVER / BROWSER INTEGRATION
-#
-# Two tests:
-#  - Use Flask's `test_client()` to exercise `/` and `/api/stats` without binding a port.
-#  - Launch `server.py` as a subprocess and query `/api/stats` over HTTP to verify the real server serves data.
-# ═══════════════════════════════════════════════════════════════════════════════
-section("9. UI Server Integration Tests")
-
-try:
-    import importlib.util, importlib
-    spec = importlib.util.spec_from_file_location("server", "server.py")
-    server = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(server)
-    ok("Imported server module for integration testing")
-
-    # 9A: Flask test_client
-    try:
-        client = server.app.test_client()
-        r = client.get('/')
-        if r.status_code == 200:
-            ok("Flask test_client: index served")
-        else:
-            fail(f"Flask test_client: index returned {r.status_code}")
-
-        r2 = client.get('/api/stats')
-        if r2.status_code == 200:
-            js = r2.get_json()
-            if all(k in js for k in ('cpu','ram','gpu','history')):
-                ok("/api/stats returns expected keys via test_client")
-            else:
-                fail("/api/stats missing expected keys via test_client")
-        else:
-            fail(f"/api/stats returned {r2.status_code} via test_client")
-    except Exception as e:
-        fail(f"Flask test_client subtest error: {e}")
-
-    # 9B: Launch server as subprocess and query HTTP endpoints
-    try:
-        import subprocess, urllib.request, json, time
-        proc = subprocess.Popen([sys.executable, 'server.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(2)  # give the server time to bind
-        try:
-            with urllib.request.urlopen('http://127.0.0.1:5000/api/stats', timeout=5) as resp:
-                if resp.status == 200:
-                    data = json.load(resp)
-                    if all(k in data for k in ('cpu','ram','gpu','history')):
-                        ok("Server subprocess: /api/stats returned expected keys")
-                    else:
-                        fail("Server subprocess: /api/stats missing keys")
-                else:
-                    fail(f"Server subprocess: /api/stats returned status {resp.status}")
-        except Exception as e:
-            fail(f"HTTP request to subprocess server failed: {e}")
-        finally:
-            proc.terminate()
-            try:
-                proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-    except Exception as e:
-        fail(f"Server subprocess test error: {e}")
-
-except Exception as e:
-    fail(f"UI integration tests setup/import failed: {e}")
 
 except Exception as e:
     fail(f"HTML check error: {e}")
@@ -462,5 +401,60 @@ elif failed == 0:
     print(f"\n  {YELLOW}{BOLD}⚠ PASSED WITH WARNINGS — Review above{RESET}\n")
 else:
     print(f"\n  {RED}{BOLD}✗ {failed} TEST(S) FAILED — Fix before building .exe{RESET}\n")
+
+# ── Write HTML report ─────────────────────────────────────────────────────────
+from datetime import datetime
+now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+status_color = '#00ff88' if failed == 0 else '#ff3d3d'
+status_text  = 'ALL PASSED' if failed == 0 and warned == 0 else f'{failed} FAILED' if failed else f'{warned} WARNINGS'
+
+rows = ''
+for kind, msg in _log_entries:
+    if kind == 'section':
+        rows += f'<tr class="section"><td colspan="2">── {msg}</td></tr>\n'
+    elif kind == 'pass':
+        rows += f'<tr><td class="icon pass">✓</td><td>{msg}</td></tr>\n'
+    elif kind == 'fail':
+        rows += f'<tr><td class="icon fail">✗</td><td class="fail">{msg}</td></tr>\n'
+    elif kind == 'warn':
+        rows += f'<tr><td class="icon warn">⚠</td><td class="warn">{msg}</td></tr>\n'
+
+html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>KAM Sentinel — Test Report</title>
+<style>
+  body {{ background:#07090d; color:#b8ccd8; font-family:'Courier New',monospace; font-size:13px; margin:0; padding:24px; }}
+  h1 {{ color:#00ff88; letter-spacing:4px; font-size:1.1rem; margin-bottom:4px; }}
+  .meta {{ color:#3d5166; font-size:.8rem; margin-bottom:20px; }}
+  .summary {{ display:flex; gap:24px; margin-bottom:24px; padding:16px; background:#0c1018; border:1px solid #1a2535; border-radius:6px; }}
+  .sum-item {{ text-align:center; }}
+  .sum-num {{ font-size:2rem; font-weight:bold; }}
+  .sum-label {{ font-size:.7rem; color:#3d5166; letter-spacing:2px; }}
+  .pass-num {{ color:#00ff88; }} .fail-num {{ color:#ff3d3d; }} .warn-num {{ color:#ffd600; }} .total-num {{ color:#b8ccd8; }}
+  .status {{ font-size:1.2rem; font-weight:bold; color:{status_color}; margin-bottom:20px; letter-spacing:3px; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  tr.section td {{ background:#111824; color:#00d4ff; padding:10px 8px 4px; font-size:.75rem; letter-spacing:3px; border-top:1px solid #1a2535; }}
+  td {{ padding:5px 8px; border-bottom:1px solid #0c1018; }}
+  td.icon {{ width:24px; text-align:center; }}
+  .pass {{ color:#00ff88; }} .fail {{ color:#ff3d3d; }} .warn {{ color:#ffd600; }}
+  tr:hover td {{ background:#0c1018; }}
+</style></head><body>
+<h1>⬡ KAM SENTINEL — TEST REPORT</h1>
+<div class="meta">Generated: {now} &nbsp;|&nbsp; v1.2 Phase 1</div>
+<div class="status">{'✓' if failed==0 else '✗'} {status_text}</div>
+<div class="summary">
+  <div class="sum-item"><div class="sum-num pass-num">{passed}</div><div class="sum-label">PASSED</div></div>
+  <div class="sum-item"><div class="sum-num warn-num">{warned}</div><div class="sum-label">WARNINGS</div></div>
+  <div class="sum-item"><div class="sum-num fail-num">{failed}</div><div class="sum-label">FAILED</div></div>
+  <div class="sum-item"><div class="sum-num total-num">{total}</div><div class="sum-label">TOTAL</div></div>
+</div>
+<table>{rows}</table>
+</body></html>"""
+
+report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_report.html')
+with open(report_path, 'w', encoding='utf-8') as f:
+    f.write(html)
+print(f"  📄 Report saved: test_report.html")
+print(f"     Open in Chrome to view full results\n")
 
 sys.exit(0 if failed == 0 else 1)

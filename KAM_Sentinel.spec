@@ -5,8 +5,8 @@ a = Analysis(
     ['launch.py'],
     pathex=[],
     binaries=[],
-    datas=[('dashboard.html', '.'), ('thresholds.py', '.')],
-    hiddenimports=['flask', 'psutil', 'wmi', 'GPUtil', 'engineio.async_drivers.threading'],
+    datas=[('dashboard.html', '.'), ('thresholds.py', '.'), ('kam_sentinel.ico', '.')],
+    hiddenimports=['flask', 'psutil', 'wmi', 'GPUtil'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['kam_sentinel.ico'],
 )

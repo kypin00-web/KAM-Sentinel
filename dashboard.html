@@ -710,15 +710,19 @@ const line = (color, label) => ({
   borderWidth:1.5, pointRadius:0, tension:.4, fill:true
 });
 
-const chartUsage = mkChart('chart-usage', [
-  line('rgb(0,212,255)', 'CPU %'),
-  line('rgb(0,255,136)', 'GPU %'),
-], 100);
+let chartUsage, chartTemp;
 
-const chartTemp = mkChart('chart-temp', [
-  line('rgb(0,212,255)', 'CPU °C'),
-  line('rgb(255,112,67)', 'GPU °C'),
-], 100);
+function initCharts() {
+  chartUsage = mkChart('chart-usage', [
+    line('rgb(0,212,255)', 'CPU %'),
+    line('rgb(0,255,136)', 'GPU %'),
+  ], 100);
+
+  chartTemp = mkChart('chart-temp', [
+    line('rgb(0,212,255)', 'CPU °C'),
+    line('rgb(255,112,67)', 'GPU °C'),
+  ], 100);
+}
 
 function pushChart(chart, label, ...vals) {
   chart.data.labels.push(label);
@@ -1036,6 +1040,7 @@ function updateOverlay(cpu, gpu, ram) {
 
 async function init() {
   cacheDom();
+  initCharts();
   await loadSystemInfo();
   await loadThresholds();
   DOM['loading-msg'].textContent = 'LOADING METRICS...';
