@@ -1150,10 +1150,18 @@ async function submitFeedback() {
       body: JSON.stringify({ category: _fbCat, message: msg })
     });
     const data = await r.json();
-    res.textContent = data.message || 'Sent!';
-    res.style.color = 'var(--green)'; res.style.display = 'block';
+    const priorityColors = {
+      critical: 'var(--red)',
+      high:     'var(--yellow)',
+      review:   'var(--cyan)',
+      normal:   'var(--green)',
+      low:      'var(--green)',
+    };
+    res.textContent = `${data.message || 'Sent!'} (ID: ${data.id || '?'})`;
+    res.style.color = priorityColors[data.priority] || 'var(--green)';
+    res.style.display = 'block';
     btn.textContent = '✓ SENT';
-    setTimeout(closeFeedback, 2000);
+    setTimeout(closeFeedback, 2500);
   } catch(e) {
     res.textContent = 'Failed to send — check server is running';
     res.style.color = 'var(--red)'; res.style.display = 'block';

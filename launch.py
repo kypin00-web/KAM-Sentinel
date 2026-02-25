@@ -30,16 +30,15 @@ def open_browser():
 def watch_for_shutdown():
     """Poll /api/stats — if server stops responding, exit cleanly."""
     import urllib.request
-    time.sleep(10)  # Give server time to start
+    time.sleep(20)  # Give server plenty of time to start
     consecutive_failures = 0
     while True:
         try:
-            urllib.request.urlopen('http://localhost:5000/api/stats', timeout=3)
+            urllib.request.urlopen('http://localhost:5000/api/stats', timeout=5)
             consecutive_failures = 0
         except Exception:
             consecutive_failures += 1
-            if consecutive_failures >= 3:
-                # Server is gone — exit
+            if consecutive_failures >= 5:  # 5 failures = 15s of no response
                 os._exit(0)
         time.sleep(3)
 

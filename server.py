@@ -466,36 +466,121 @@ def api_original_profile():
 
 @app.route('/api/feedback', methods=['POST'])
 def api_feedback():
-    """In-app feedback — saves locally, no external calls, no PII."""
+    """In-app feedback — auto-triaged by category, priority scored, no PII."""
     data = request.get_json(silent=True) or {}
-    # Validate
+
     category = data.get('category', 'general')
     if category not in ('bug', 'feature', 'performance', 'general'):
         category = 'general'
-    message = str(data.get('message', ''))[:500]  # cap at 500 chars
+    message = str(data.get('message', ''))[:500]
     if not message.strip():
         return jsonify({"error": "No message"}), 400
 
+    # ── Auto-triage: priority scoring ────────────────────────────────────────
+    priority = 'normal'
+    auto_action = None
+    keywords = message.lower()
+
+    if category == 'bug':
+        # Critical bug keywords → P0
+        if any(k in keywords for k in ['crash','freeze','not working','broken','error','exception','won\'t start','fails']):
+            priority = 'critical'
+            auto_action = 'immediate_fix'
+        # Functional bugs → P1
+        elif any(k in keywords for k in ['wrong','incorrect','missing','n/a','not showing','blank','stuck']):
+            priority = 'high'
+            auto_action = 'fix_next_build'
+        else:
+            priority = 'normal'
+            auto_action = 'fix_next_build'
+
+    elif category == 'performance':
+        if any(k in keywords for k in ['slow','lag','freeze','high cpu','memory leak','100%']):
+            priority = 'high'
+            auto_action = 'investigate_immediately'
+        else:
+            priority = 'normal'
+            auto_action = 'investigate_next_build'
+
+    elif category == 'feature':
+        priority = 'review'
+        auto_action = 'pending_review'  # Goes to review queue for us to decide
+
+    elif category == 'general':
+        priority = 'low'
+        auto_action = 'log_only'
+
     feedback_entry = {
-        "ts":       time.time(),
-        "date":     datetime.datetime.now().isoformat(),
-        "category": category,
-        "message":  message,
-        "version":  "1.4.0",
-        "sys_info": {  # only hardware context, no PII
+        "ts":          time.time(),
+        "date":        datetime.datetime.now().isoformat(),
+        "id":          f"{category[:3].upper()}-{int(time.time())}",
+        "category":    category,
+        "priority":    priority,
+        "auto_action": auto_action,
+        "message":     message,
+        "status":      "open",
+        "version":     "1.4.0",
+        "sys_info": {
             "cpu": _system_info.get('cpu_name', 'N/A'),
             "gpu": _system_info.get('gpu_name', 'N/A'),
             "os":  _system_info.get('os_release', 'N/A'),
         }
     }
 
-    feedback_file = os.path.join(LOG_DIR, 'feedback.jsonl')
+    # Write to category-specific file for easy review
+    feedback_dir = os.path.join(LOG_DIR, 'feedback')
+    os.makedirs(feedback_dir, exist_ok=True)
+    feedback_file = os.path.join(feedback_dir, f'{category}.jsonl')
+
     try:
         with open(feedback_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(feedback_entry) + '\n')
-        return jsonify({"status": "ok", "message": "Feedback saved — thank you!"})
+
+        # User-facing response based on priority
+        messages = {
+            'critical':    "🔴 Critical bug logged — fix queued immediately",
+            'high':        "🟡 Bug logged — scheduled for next build",
+            'review':      "✨ Feature request logged — we'll review it!",
+            'normal':      "✓ Logged — thank you!",
+            'low':         "✓ Feedback received — thank you!",
+        }
+        return jsonify({
+            "status":   "ok",
+            "id":       feedback_entry["id"],
+            "priority": priority,
+            "message":  messages.get(priority, "Thank you!")
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/feedback/queue')
+def api_feedback_queue():
+    """Returns open feedback items for review — bugs auto-sorted by priority."""
+    feedback_dir = os.path.join(LOG_DIR, 'feedback')
+    if not os.path.exists(feedback_dir):
+        return jsonify({"items": [], "counts": {}})
+
+    items = []
+    counts = {'bug': 0, 'performance': 0, 'feature': 0, 'general': 0}
+
+    for cat in ('bug', 'performance', 'feature', 'general'):
+        f = os.path.join(feedback_dir, f'{cat}.jsonl')
+        if os.path.exists(f):
+            with open(f, encoding='utf-8') as fh:
+                for line in fh:
+                    try:
+                        entry = json.loads(line.strip())
+                        if entry.get('status') == 'open':
+                            items.append(entry)
+                            counts[cat] = counts.get(cat, 0) + 1
+                    except:
+                        pass
+
+    # Sort: critical first, then high, then review, then normal/low
+    priority_order = {'critical': 0, 'high': 1, 'review': 2, 'normal': 3, 'low': 4}
+    items.sort(key=lambda x: priority_order.get(x.get('priority', 'low'), 5))
+
+    return jsonify({"items": items[-50:], "counts": counts})
 def api_shutdown():
     """Called by dashboard when browser tab/window is closed."""
     _flush_log()
