@@ -1,0 +1,62 @@
+{
+  "type": "BASELINE_SNAPSHOT",
+  "saved_at": "2026-02-24T11:55:04.748314",
+  "system_info": {
+    "os": "Windows",
+    "os_version": "10.0.26200",
+    "os_release": "11",
+    "hostname": "Kypin00",
+    "windows_dir": "C:\\WINDOWS",
+    "cpu_name": "AMD64 Family 25 Model 33 Stepping 0, AuthenticAMD",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_max_ghz": 4.2,
+    "cpu_current_ghz": 4.2,
+    "ram_total_mb": 32678,
+    "ram_total_gb": 31.91,
+    "pagefile_used_mb": 24,
+    "pagefile_total_mb": 8704,
+    "gpu_name": "NVIDIA GeForce RTX 3080",
+    "gpu_vram_mb": 10240,
+    "manufacturer": "System manufacturer",
+    "model": "System Product Name",
+    "bios_version": "3603",
+    "motherboard": "ASUSTeK COMPUTER INC. TUF GAMING X570-PLUS (WI-FI)",
+    "directx": "DirectX 12 (v4.09.00.0904)",
+    "disks": [
+      {
+        "device": "C:\\",
+        "mountpoint": "C:\\",
+        "total_gb": 446.1,
+        "used_gb": 320.6,
+        "free_gb": 125.5,
+        "percent": 71.9
+      },
+      {
+        "device": "D:\\",
+        "mountpoint": "D:\\",
+        "total_gb": 484.4,
+        "used_gb": 428.5,
+        "free_gb": 55.9,
+        "percent": 88.5
+      },
+      {
+        "device": "E:\\",
+        "mountpoint": "E:\\",
+        "total_gb": 1863.0,
+        "used_gb": 992.9,
+        "free_gb": 870.1,
+        "percent": 53.3
+      }
+    ],
+    "captured_at": "2026-02-24T11:55:03.602012"
+  },
+  "initial_metrics": {
+    "cpu_usage": 11.1,
+    "cpu_temp": null,
+    "cpu_voltage": 1.1,
+    "ram_usage": 30.2,
+    "gpu_usage": 3.0,
+    "gpu_temp": 45.0
+  }
+}
