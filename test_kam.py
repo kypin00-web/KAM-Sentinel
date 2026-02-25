@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 CI = os.environ.get('CI', 'false').lower() == 'true'  # True in GitHub Actions
 
-# ── Color output ──────────────────────────────────────────────────────────────
+# -- Color output --------------------------------------------------------------
 GREEN  = '\033[92m'
 RED    = '\033[91m'
 YELLOW = '\033[93m'
@@ -25,30 +25,30 @@ def ok(msg):
     global passed
     passed += 1
     _log_entries.append(('pass', msg))
-    print(f"  {GREEN}{'[OK]' if CI else '✓'}{RESET} {msg}")
+    print(f"  {GREEN}{'[OK]' if CI else '[OK]'}{RESET} {msg}")
 
 def fail(msg):
     global failed
     failed += 1
     _log_entries.append(('fail', msg))
-    print(f"  {RED}{'[FAIL]' if CI else '✗ FAIL'}{RESET} {msg}")
+    print(f"  {RED}{'[FAIL]' if CI else '[FAIL] FAIL'}{RESET} {msg}")
 
 def warn(msg):
     global warned
     warned += 1
     _log_entries.append(('warn', msg))
-    print(f"  {YELLOW}{'[WARN]' if CI else '⚠ WARN'}{RESET} {msg}")
+    print(f"  {YELLOW}{'[WARN]' if CI else '[WARN] WARN'}{RESET} {msg}")
 
 def section(title):
     _log_entries.append(('section', title))
     if CI:
         print(f"\n{BOLD}{CYAN}-- {title} {'-'*(50-len(title))}{RESET}")
     else:
-        print(f"\n{BOLD}{CYAN}── {title} {'─'*(50-len(title))}{RESET}")
+        print(f"\n{BOLD}{CYAN}-- {title} {'-'*(50-len(title))}{RESET}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 1. IMPORT & SYNTAX CHECK
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("1. Import & Module Check")
 
 try:
@@ -61,35 +61,35 @@ try:
     import psutil
     ok(f"psutil available (v{psutil.__version__})")
 except:
-    fail("psutil not installed — run: python -m pip install psutil")
+    fail("psutil not installed -- run: python -m pip install psutil")
 
 try:
     import flask
     ok(f"flask available (v{flask.__version__})")
 except:
-    fail("flask not installed — run: python -m pip install flask")
+    fail("flask not installed -- run: python -m pip install flask")
 
 if CI:
-    ok("GPUtil check skipped — CI environment (Windows-only package)")
+    ok("GPUtil check skipped -- CI environment (Windows-only package)")
 else:
     try:
         import GPUtil
-        ok("GPUtil available — GPU stats enabled")
+        ok("GPUtil available -- GPU stats enabled")
     except:
-        warn("GPUtil not installed — GPU stats will show N/A (pip install GPUtil)")
+        warn("GPUtil not installed -- GPU stats will show N/A (pip install GPUtil)")
 
 if CI:
-    ok("wmi check skipped — CI environment (Windows-only package)")
+    ok("wmi check skipped -- CI environment (Windows-only package)")
 else:
     try:
         import wmi
-        ok("wmi available — CPU temp/voltage enabled")
+        ok("wmi available -- CPU temp/voltage enabled")
     except:
-        warn("wmi not installed — CPU temp/voltage will show N/A (pip install wmi pywin32)")
+        warn("wmi not installed -- CPU temp/voltage will show N/A (pip install wmi pywin32)")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 2. THRESHOLD ENGINE TESTS
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("2. Threshold Engine")
 
 try:
@@ -104,16 +104,16 @@ try:
     # Ryzen detection
     t_ryzen = thresholds.detect_thresholds("AMD Ryzen 9 5900X", "Unknown GPU")
     if t_ryzen['cpu']['temp_crit'] <= 90:
-        ok(f"Ryzen 5000 TJmax detected correctly: {t_ryzen['cpu']['temp_crit']}°C")
+        ok(f"Ryzen 5000 TJmax detected correctly: {t_ryzen['cpu']['temp_crit']}?C")
     else:
-        fail(f"Ryzen 5000 TJmax wrong: {t_ryzen['cpu']['temp_crit']}°C (expected ≤90)")
+        fail(f"Ryzen 5000 TJmax wrong: {t_ryzen['cpu']['temp_crit']}?C (expected ?90)")
 
     # RTX detection
     t_rtx = thresholds.detect_thresholds("Unknown CPU", "NVIDIA GeForce RTX 3080")
     if t_rtx['gpu']['temp_crit'] >= 90:
-        ok(f"RTX 3080 GPU limit detected: {t_rtx['gpu']['temp_crit']}°C")
+        ok(f"RTX 3080 GPU limit detected: {t_rtx['gpu']['temp_crit']}?C")
     else:
-        fail(f"RTX 3080 GPU limit wrong: {t_rtx['gpu']['temp_crit']}°C")
+        fail(f"RTX 3080 GPU limit wrong: {t_rtx['gpu']['temp_crit']}?C")
 
     # Save/load round-trip
     import tempfile
@@ -127,9 +127,9 @@ try:
 except Exception as e:
     fail(f"Threshold engine error: {e}\n    {traceback.format_exc()}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 3. MEMORY LEAK DETECTION
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("3. Memory Leak Detection")
 
 try:
@@ -150,12 +150,12 @@ try:
     if 'deque(maxlen=' in src:
         ok("server.py uses deque(maxlen=) for history buffers")
     else:
-        fail("server.py still uses plain lists — memory leak risk")
+        fail("server.py still uses plain lists -- memory leak risk")
 
     code_lines = [l for l in src.splitlines() if not l.strip().startswith('#')]
     code_only = '\n'.join(code_lines)
     if '.pop(0)' not in code_only:
-        ok("No list.pop(0) calls found — O(1) operations confirmed")
+        ok("No list.pop(0) calls found -- O(1) operations confirmed")
     else:
         import re
         pops = re.findall(r'.+\.pop\(0\)', code_only)
@@ -163,22 +163,22 @@ try:
 
     # Check log buffer is bounded
     if 'LOG_BATCH_SIZE' in src or '_log_buffer' in src:
-        ok("Log batching present — disk I/O not on every poll")
+        ok("Log batching present -- disk I/O not on every poll")
     else:
-        warn("No log batching found — disk writes may happen every poll")
+        warn("No log batching found -- disk writes may happen every poll")
 
     # Check log rotation - logs split by day so they don't grow forever
     if 'rotate' in src.lower() or 'LOG_MAX_LINES' in src or 'session_' in src:
-        ok("Log rotation present — daily log files prevent unbounded growth")
+        ok("Log rotation present -- daily log files prevent unbounded growth")
     else:
-        warn("No log rotation found — log files may grow forever")
+        warn("No log rotation found -- log files may grow forever")
 
 except Exception as e:
     fail(f"Memory check error: {e}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 4. PERFORMANCE CHECKS
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("4. Performance & Architecture")
 
 try:
@@ -187,49 +187,49 @@ try:
 
     # Background thread
     if '_background_poll' in src or '_cpu_sampler' in src or ('daemon=True' in src and 'threading.Thread' in src):
-        ok("Background daemon thread present — Flask requests never block on hardware I/O")
+        ok("Background daemon thread present -- Flask requests never block on hardware I/O")
     else:
-        fail("No background polling thread — stats collected on every request (blocks Flask)")
+        fail("No background polling thread -- stats collected on every request (blocks Flask)")
 
     # WMI caching
     if 'WMI_CACHE_TTL' in src or '_wmi_cache_time' in src or '_wmi_cache' in src:
-        ok("WMI result caching present — slow COM calls max once per 30s")
+        ok("WMI result caching present -- slow COM calls max once per 30s")
     else:
-        warn("No WMI caching — every poll calls slow COM operations (50-200ms)")
+        warn("No WMI caching -- every poll calls slow COM operations (50-200ms)")
 
     # Non-blocking cpu_percent
     if 'interval=0' in src:
-        ok("cpu_percent(interval=0) — non-blocking delta measurement")
+        ok("cpu_percent(interval=0) -- non-blocking delta measurement")
     elif 'interval=0.1' in src:
-        fail("cpu_percent(interval=0.1) — blocks 100ms per poll cycle")
+        fail("cpu_percent(interval=0.1) -- blocks 100ms per poll cycle")
 
     # Threading
     if 'threaded=True' in src:
-        ok("Flask threaded=True — concurrent request handling enabled")
+        ok("Flask threaded=True -- concurrent request handling enabled")
     else:
-        warn("Flask threaded not set — requests may queue behind each other")
+        warn("Flask threaded not set -- requests may queue behind each other")
 
     # Single cache object
     if '_stat_cache' in src or '_cached_stats' in src or 'collect_live_stats' in src:
-        ok("Stat cache object present — Flask serves pre-computed data")
+        ok("Stat cache object present -- Flask serves pre-computed data")
     else:
-        warn("No stat cache found — metrics may be computed on every request")
+        warn("No stat cache found -- metrics may be computed on every request")
 
     # Check GPU async worker
     if '_gpu_worker' in src:
-        ok("GPU worker thread present — nvidia-smi never blocks polling thread")
+        ok("GPU worker thread present -- nvidia-smi never blocks polling thread")
     else:
-        fail("No GPU worker thread — nvidia-smi blocks main poll every cycle")
+        fail("No GPU worker thread -- nvidia-smi blocks main poll every cycle")
 
     if 'get_gpu_cached' in src:
-        ok("get_gpu_cached() used in poll — GPU reads are instant/non-blocking")
+        ok("get_gpu_cached() used in poll -- GPU reads are instant/non-blocking")
     else:
-        fail("get_gpu_stats() used directly in poll — blocks on nvidia-smi")
+        fail("get_gpu_stats() used directly in poll -- blocks on nvidia-smi")
 
     if 'CREATE_NO_WINDOW' in src:
-        ok("CREATE_NO_WINDOW set — no CMD flash when running as .exe")
+        ok("CREATE_NO_WINDOW set -- no CMD flash when running as .exe")
     else:
-        warn("CREATE_NO_WINDOW not set — may see CMD flash in .exe builds")
+        warn("CREATE_NO_WINDOW not set -- may see CMD flash in .exe builds")
 
     # cpu_percent timing
     t0 = time.perf_counter()
@@ -237,16 +237,16 @@ try:
     psutil.cpu_percent(interval=0)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     if elapsed_ms < 5:
-        ok(f"cpu_percent(interval=0) returns in {elapsed_ms:.1f}ms — non-blocking confirmed")
+        ok(f"cpu_percent(interval=0) returns in {elapsed_ms:.1f}ms -- non-blocking confirmed")
     else:
-        warn(f"cpu_percent took {elapsed_ms:.1f}ms — may be blocking")
+        warn(f"cpu_percent took {elapsed_ms:.1f}ms -- may be blocking")
 
 except Exception as e:
     fail(f"Performance check error: {e}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 5. WARNING ENGINE LOGIC
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("5. Warning Engine Logic")
 
 try:
@@ -267,17 +267,17 @@ try:
 
     # Threshold checks manually
     if cpu_hot['temp'] >= t['cpu']['temp_crit']:
-        ok(f"CPU critical threshold fires at {cpu_hot['temp']}°C (limit: {t['cpu']['temp_crit']}°C)")
+        ok(f"CPU critical threshold fires at {cpu_hot['temp']}?C (limit: {t['cpu']['temp_crit']}?C)")
     else:
         fail("CPU critical threshold did not fire")
 
     if cpu_ok['temp'] < t['cpu']['temp_warn']:
-        ok(f"CPU OK temp {cpu_ok['temp']}°C correctly below warning threshold")
+        ok(f"CPU OK temp {cpu_ok['temp']}?C correctly below warning threshold")
     else:
         fail("CPU OK temp incorrectly above warning threshold")
 
     if gpu_hot['temp'] >= t['gpu']['temp_crit']:
-        ok(f"GPU critical threshold fires at {gpu_hot['temp']}°C")
+        ok(f"GPU critical threshold fires at {gpu_hot['temp']}?C")
     else:
         fail("GPU critical threshold did not fire")
 
@@ -294,9 +294,9 @@ try:
 except Exception as e:
     fail(f"Warning engine test error: {e}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 6. FILE STRUCTURE & SAFETY CHECKS
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("6. File Structure & Safety")
 
 required_files = ['server.py', 'thresholds.py', 'dashboard.html', 'launch.py',
@@ -317,9 +317,9 @@ else:
 
 # Check no debug=True
 if 'debug=True' not in src:
-    ok("Flask debug=False — production safe")
+    ok("Flask debug=False -- production safe")
 else:
-    fail("Flask debug=True found — must be False for distribution")
+    fail("Flask debug=True found -- must be False for distribution")
 
 # Check version string
 import re
@@ -327,17 +327,17 @@ versions = re.findall(r'v([\d.]+)', src)
 if versions:
     ok(f"Version string found: v{versions[0]}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 7. LIVE PSUTIL READING
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("7. Live Hardware Reading")
 
 if CI:
-    ok("Live hardware reading skipped — CI environment (no physical hardware)")
-    ok("CPU usage check skipped — CI")
-    ok("RAM check skipped — CI")
-    ok("Network check skipped — CI")
-    ok("Poll cycle performance check skipped — CI")
+    ok("Live hardware reading skipped -- CI environment (no physical hardware)")
+    ok("CPU usage check skipped -- CI")
+    ok("RAM check skipped -- CI")
+    ok("Network check skipped -- CI")
+    ok("Poll cycle performance check skipped -- CI")
 else:
     try:
         import psutil
@@ -373,18 +373,18 @@ else:
             times.append((time.perf_counter()-t0)*1000)
         avg_ms = statistics.mean(times)
         if avg_ms < 10:
-            ok(f"10x poll cycle avg: {avg_ms:.2f}ms — excellent performance")
+            ok(f"10x poll cycle avg: {avg_ms:.2f}ms -- excellent performance")
         elif avg_ms < 50:
-            warn(f"10x poll cycle avg: {avg_ms:.2f}ms — acceptable")
+            warn(f"10x poll cycle avg: {avg_ms:.2f}ms -- acceptable")
         else:
-            fail(f"10x poll cycle avg: {avg_ms:.2f}ms — too slow")
+            fail(f"10x poll cycle avg: {avg_ms:.2f}ms -- too slow")
 
     except Exception as e:
         fail(f"Hardware reading error: {e}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 8. DASHBOARD HTML CHECKS
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("8. Dashboard HTML Checks")
 
 try:
@@ -420,11 +420,11 @@ try:
 except Exception as e:
     fail(f"HTML check error: {e}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # SUMMARY
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 total = passed + failed + warned
-SEP = '='*55 if CI else '═'*55
+SEP = '='*55 if CI else '='*55
 print(f"\n{SEP}")
 print(f"{BOLD}  KAM SENTINEL TEST RESULTS{RESET}")
 print(f"{SEP}")
@@ -435,9 +435,9 @@ print(f"  Total  : {total}")
 print(f"{SEP}")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # 9. SECURITY SCAN
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 section("9. Security Scan")
 
 try:
@@ -448,29 +448,29 @@ try:
 
     # Rate limiting
     if 'rate_limit' in src or 'RATE_LIMIT' in src or 'is_rate_limited' in src:
-        ok("Rate limiting present — API protected from hammering")
+        ok("Rate limiting present -- API protected from hammering")
     else:
-        fail("SECURITY: No rate limiting — API can be hammered from network")
+        fail("SECURITY: No rate limiting -- API can be hammered from network")
 
     # Input validation
     if 'validate_threshold_data' in src or 'ALLOWED_THRESHOLD_KEYS' in src:
-        ok("Input validation on POST endpoints — no arbitrary data written to disk")
+        ok("Input validation on POST endpoints -- no arbitrary data written to disk")
     else:
-        fail("SECURITY: No input validation on POST — arbitrary data can be written to disk")
+        fail("SECURITY: No input validation on POST -- arbitrary data can be written to disk")
 
     # No eval/exec
     code_lines = [l for l in src.splitlines() if not l.strip().startswith('#')]
     code_only = '\n'.join(code_lines)
     if 'eval(' not in code_only and 'exec(' not in code_only:
-        ok("No eval()/exec() — no code injection risk")
+        ok("No eval()/exec() -- no code injection risk")
     else:
-        fail("SECURITY: eval() or exec() found in server code — injection risk")
+        fail("SECURITY: eval() or exec() found in server code -- injection risk")
 
     # No shell=True subprocess
     if 'shell=True' not in src:
-        ok("No shell=True subprocess calls — no shell injection risk")
+        ok("No shell=True subprocess calls -- no shell injection risk")
     else:
-        fail("SECURITY: shell=True found — shell injection risk")
+        fail("SECURITY: shell=True found -- shell injection risk")
 
     # No hardcoded secrets
     import re
@@ -485,56 +485,56 @@ try:
     if not found_secret:
         ok("No hardcoded secrets/passwords/tokens found")
     else:
-        fail("SECURITY: Possible hardcoded secret found — review server.py")
+        fail("SECURITY: Possible hardcoded secret found -- review server.py")
 
     # No PII in logs - check what gets logged
     if 'username' not in src.lower() and 'email' not in src.lower() and 'password' not in src.lower():
         ok("No PII fields (username/email/password) in server code")
     else:
-        warn("Possible PII field references found — verify no personal data logged")
+        warn("Possible PII field references found -- verify no personal data logged")
 
     # Autofix whitelist
     if 'ALLOWED_FIXES' in src:
-        ok("Auto-fix whitelist present — only safe pip installs allowed")
+        ok("Auto-fix whitelist present -- only safe pip installs allowed")
     else:
-        fail("SECURITY: No auto-fix whitelist — arbitrary commands could be run")
+        fail("SECURITY: No auto-fix whitelist -- arbitrary commands could be run")
 
     # CREATE_NO_WINDOW on subprocess
     if 'CREATE_NO_WINDOW' in src:
-        ok("CREATE_NO_WINDOW on subprocesses — no CMD flash, no visible attack surface")
+        ok("CREATE_NO_WINDOW on subprocesses -- no CMD flash, no visible attack surface")
     else:
-        warn("CREATE_NO_WINDOW not set — subprocess windows visible to user")
+        warn("CREATE_NO_WINDOW not set -- subprocess windows visible to user")
 
     # Debug mode off
     if 'debug=True' not in src:
-        ok("Flask debug=False — no debugger PIN exposure")
+        ok("Flask debug=False -- no debugger PIN exposure")
     else:
-        fail("SECURITY: Flask debug=True — exposes interactive debugger on network")
+        fail("SECURITY: Flask debug=True -- exposes interactive debugger on network")
 
     # XSS in dashboard - no innerHTML with user data
     innerHTML_uses = re.findall(r'innerHTML\s*=\s*[^;`]+', html)
     risky = [u for u in innerHTML_uses if ('textContent' not in u and 'd.' in u) or 'data.' in u]
     if not risky:
-        ok("No risky innerHTML with server data — XSS risk low")
+        ok("No risky innerHTML with server data -- XSS risk low")
     else:
-        warn(f"innerHTML used with data — verify XSS safe: {len(innerHTML_uses)} uses")
+        warn(f"innerHTML used with data -- verify XSS safe: {len(innerHTML_uses)} uses")
 
     # Localhost only warning
     if "host='0.0.0.0'" in src or 'host="0.0.0.0"' in src:
-        warn("Server binds to 0.0.0.0 — accessible on local network (by design, but note for awareness)")
+        warn("Server binds to 0.0.0.0 -- accessible on local network (by design, but note for awareness)")
     else:
         ok("Server binds to localhost only")
 
     # Diagnostic autofix scope
     if '/api/autofix' in src and 'ALLOWED_FIXES' in src:
-        ok("Auto-fix endpoint has strict whitelist — only approved pip installs")
+        ok("Auto-fix endpoint has strict whitelist -- only approved pip installs")
     else:
         warn("Auto-fix endpoint missing or unprotected")
 
 except Exception as e:
     fail(f"Security scan error: {e}")
 
-# ── Write HTML report ─────────────────────────────────────────────────────────
+# -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 status_color = '#00ff88' if failed == 0 else '#ff3d3d'
@@ -543,17 +543,17 @@ status_text  = 'ALL PASSED' if failed == 0 and warned == 0 else f'{failed} FAILE
 rows = ''
 for kind, msg in _log_entries:
     if kind == 'section':
-        rows += f'<tr class="section"><td colspan="2">── {msg}</td></tr>\n'
+        rows += f'<tr class="section"><td colspan="2">-- {msg}</td></tr>\n'
     elif kind == 'pass':
-        rows += f'<tr><td class="icon pass">✓</td><td>{msg}</td></tr>\n'
+        rows += f'<tr><td class="icon pass">[OK]</td><td>{msg}</td></tr>\n'
     elif kind == 'fail':
-        rows += f'<tr><td class="icon fail">✗</td><td class="fail">{msg}</td></tr>\n'
+        rows += f'<tr><td class="icon fail">[FAIL]</td><td class="fail">{msg}</td></tr>\n'
     elif kind == 'warn':
-        rows += f'<tr><td class="icon warn">⚠</td><td class="warn">{msg}</td></tr>\n'
+        rows += f'<tr><td class="icon warn">[WARN]</td><td class="warn">{msg}</td></tr>\n'
 
 html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<title>KAM Sentinel — Test Report</title>
+<title>KAM Sentinel -- Test Report</title>
 <style>
   body {{ background:#07090d; color:#b8ccd8; font-family:'Courier New',monospace; font-size:13px; margin:0; padding:24px; }}
   h1 {{ color:#00ff88; letter-spacing:4px; font-size:1.1rem; margin-bottom:4px; }}
@@ -571,9 +571,9 @@ html = f"""<!DOCTYPE html>
   .pass {{ color:#00ff88; }} .fail {{ color:#ff3d3d; }} .warn {{ color:#ffd600; }}
   tr:hover td {{ background:#0c1018; }}
 </style></head><body>
-<h1>⬡ KAM SENTINEL — TEST REPORT</h1>
+<h1>? KAM SENTINEL -- TEST REPORT</h1>
 <div class="meta">Generated: {now} &nbsp;|&nbsp; v1.2 Phase 1</div>
-<div class="status">{'✓' if failed==0 else '✗'} {status_text}</div>
+<div class="status">{'[OK]' if failed==0 else '[FAIL]'} {status_text}</div>
 <div class="summary">
   <div class="sum-item"><div class="sum-num pass-num">{passed}</div><div class="sum-label">PASSED</div></div>
   <div class="sum-item"><div class="sum-num warn-num">{warned}</div><div class="sum-label">WARNINGS</div></div>
@@ -586,7 +586,7 @@ html = f"""<!DOCTYPE html>
 report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_report.html')
 with open(report_path, 'w', encoding='utf-8') as f:
     f.write(html)
-print(f"  📄 Report saved: test_report.html")
+print(f"  ? Report saved: test_report.html")
 print(f"     Open in Chrome to view full results\n")
 
 sys.exit(0 if failed == 0 else 1)
