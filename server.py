@@ -464,7 +464,38 @@ def api_original_profile():
         with open(ORIG_PROFILE_FILE) as f: return jsonify(json.load(f))
     return jsonify({"error":"No profile"}),404
 
-@app.route('/api/shutdown', methods=['POST'])
+@app.route('/api/feedback', methods=['POST'])
+def api_feedback():
+    """In-app feedback — saves locally, no external calls, no PII."""
+    data = request.get_json(silent=True) or {}
+    # Validate
+    category = data.get('category', 'general')
+    if category not in ('bug', 'feature', 'performance', 'general'):
+        category = 'general'
+    message = str(data.get('message', ''))[:500]  # cap at 500 chars
+    if not message.strip():
+        return jsonify({"error": "No message"}), 400
+
+    feedback_entry = {
+        "ts":       time.time(),
+        "date":     datetime.datetime.now().isoformat(),
+        "category": category,
+        "message":  message,
+        "version":  "1.4.0",
+        "sys_info": {  # only hardware context, no PII
+            "cpu": _system_info.get('cpu_name', 'N/A'),
+            "gpu": _system_info.get('gpu_name', 'N/A'),
+            "os":  _system_info.get('os_release', 'N/A'),
+        }
+    }
+
+    feedback_file = os.path.join(LOG_DIR, 'feedback.jsonl')
+    try:
+        with open(feedback_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(feedback_entry) + '\n')
+        return jsonify({"status": "ok", "message": "Feedback saved — thank you!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 def api_shutdown():
     """Called by dashboard when browser tab/window is closed."""
     _flush_log()
@@ -477,7 +508,37 @@ def api_shutdown():
 
 @app.route('/api/diagnostics')
 def api_diagnostics():
-    """Returns self-healing diagnostic info for N/A indicators in dashboard."""
+    """Returns self-healing diagnostic info for N/A indicators in dashboard.
+    Add ?test=1 to URL to simulate all N/A states for UI testing."""
+    test_mode = request.args.get('test') == '1'
+
+    if test_mode:
+        return jsonify({
+            'gpu': {
+                'status': 'missing_package',
+                'message': '[TEST MODE] GPUtil not installed — GPU stats unavailable',
+                'fix': 'pip install GPUtil',
+                'auto_fix': True
+            },
+            'cpu_temp': {
+                'status': 'needs_lhm',
+                'message': '[TEST MODE] LibreHardwareMonitor not running — needed for Ryzen/AMD CPU temps',
+                'fix': 'Launch LibreHardwareMonitor.exe as Administrator',
+                'auto_fix': False,
+                'download': 'https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest'
+            },
+            'wmi': {
+                'status': 'missing_package',
+                'message': '[TEST MODE] WMI not installed — voltage/temp limited',
+                'fix': 'pip install wmi pywin32',
+                'auto_fix': True
+            },
+            'privacy': {
+                'status': 'ok',
+                'message': 'No PII stored — hardware metrics only',
+                'fix': None
+            }
+        })
     diags = {}
 
     # GPU diagnostics

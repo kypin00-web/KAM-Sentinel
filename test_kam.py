@@ -390,6 +390,10 @@ try:
         ('Overlay drag support',    'mousedown' in html or 'dragging' in html),
         ('Browser close shutdown',  'beforeunload' in html and 'sendBeacon' in html),
         ('Shutdown endpoint',       'api/shutdown' in html),
+        ('Feedback modal',          'feedback-modal' in html),
+        ('Feedback endpoint',       'api/feedback' in html),
+        ('spanGaps chart fix',      'spanGaps' in html),
+        ('Logo K in KAM',           'AM</span>' in html or '>AM<' in html),
     ]
     for name, result in checks:
         if result:

@@ -1,16 +1,14 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "build": 1,
   "date": "2026-02-25",
   "channel": "stable",
   "changes": [
-    "Async GPU worker thread - nvidia-smi never blocks polling",
-    "CREATE_NO_WINDOW - no CMD flash in .exe builds",
-    "Clean shutdown on browser tab close",
-    "Self-healing diagnostics - N/A indicators with one-click auto-fix",
-    "Security hardening - rate limiting, input validation, auto-fix whitelist",
-    "Automated security scan in test suite (Section 9)",
-    "deploy.bat - full automated release pipeline",
-    "Update notification toast with changelog"
+    "UX overhaul - glassmorphism cards, richer color palette, hover animations",
+    "Logo redesign - shield K is now the K in KAM",
+    "GPU temp chart fix - spanGaps renders line through null values",
+    "In-app feedback system - bug/feature/performance reports, no PII",
+    "Deeper contrast backgrounds for better readability",
+    "Improved card hover effects with color-matched glows"
   ]
 }

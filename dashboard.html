@@ -8,26 +8,42 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
 <style>
 :root {
-  --bg:      #07090d;
-  --bg2:     #0c1018;
-  --bg3:     #111824;
+  /* Core backgrounds - deeper contrast */
+  --bg:      #050709;
+  --bg2:     #0a0e17;
+  --bg3:     #0f1520;
+  --bg4:     #141c2b;
+  /* Borders */
   --border:  #1a2535;
   --border2: #243347;
-  --cyan:    #00d4ff;
+  --border3: #2e4060;
+  /* Brand colors - more saturated */
+  --cyan:    #00e5ff;
   --green:   #00ff88;
-  --orange:  #ff7043;
-  --purple:  #a855f7;
+  --orange:  #ff6b35;
+  --purple:  #c084fc;
   --yellow:  #ffd600;
-  --red:     #ff3d3d;
-  --text:    #b8ccd8;
+  --red:     #ff4444;
+  --pink:    #f472b6;
+  /* Text */
+  --text:    #c8dce8;
   --dim:     #3d5166;
-  --white:   #e8f0f8;
+  --dim2:    #526a80;
+  --white:   #eef4fb;
+  /* Glows */
+  --glow-cyan:   rgba(0,229,255,.2);
+  --glow-green:  rgba(0,255,136,.2);
+  --glow-purple: rgba(192,132,252,.2);
+  --glow-orange: rgba(255,107,53,.2);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,229,255,.04) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(0,255,136,.03) 0%, transparent 50%);
   color: var(--text);
   font-family: 'Rajdhani', sans-serif;
   font-size: 15px;
@@ -50,10 +66,13 @@ body::before {
 /* ── HEADER ─────────────────────────────────────────────────────────────── */
 header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:12px 24px;
-  background: var(--bg2);
+  padding:14px 28px;
+  background: rgba(10,14,23,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
   position: sticky; top:0; z-index:200;
+  box-shadow: 0 4px 32px rgba(0,0,0,.4), 0 1px 0 rgba(0,229,255,.05);
 }
 .logo {
   font-family:'Share Tech Mono',monospace;
@@ -149,7 +168,63 @@ header {
 }
 .diag-btn:hover { background: var(--yellow); color: var(--bg); }
 
-/* ── DIAGNOSTIC MODAL ────────────────────────────────────────────────────── */
+/* ── FEEDBACK MODAL ──────────────────────────────────────────────────────── */
+.feedback-modal {
+  display:none; position:fixed; inset:0; z-index:10000;
+  background: rgba(0,0,0,.75); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center;
+}
+.feedback-modal.open { display:flex; }
+.feedback-box {
+  background: linear-gradient(135deg, var(--bg2), var(--bg3));
+  border: 1px solid var(--border3); border-radius:12px;
+  padding:28px; max-width:480px; width:90%;
+  box-shadow: 0 0 60px rgba(0,229,255,.08), 0 24px 64px rgba(0,0,0,.6);
+}
+.feedback-title {
+  color:var(--cyan); font-size:.8rem; letter-spacing:3px;
+  margin-bottom:20px; display:flex; align-items:center; gap:8px;
+}
+.feedback-cats {
+  display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;
+}
+.fb-cat {
+  background:var(--bg4); border:1px solid var(--border2);
+  color:var(--dim2); font-family:'Share Tech Mono',monospace;
+  font-size:.65rem; padding:5px 12px; border-radius:20px;
+  cursor:pointer; transition:all .2s; letter-spacing:1px;
+}
+.fb-cat.active { border-color:var(--cyan); color:var(--cyan); background:rgba(0,229,255,.06); }
+.fb-textarea {
+  width:100%; background:var(--bg4); border:1px solid var(--border2);
+  color:var(--white); border-radius:6px; padding:12px;
+  font-family:'Rajdhani',sans-serif; font-size:.9rem;
+  resize:vertical; min-height:100px; outline:none;
+  transition:border-color .2s;
+}
+.fb-textarea:focus { border-color:var(--cyan); }
+.fb-textarea::placeholder { color:var(--dim); }
+.fb-footer {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-top:14px;
+}
+.fb-note { font-size:.7rem; color:var(--dim); }
+.fb-actions { display:flex; gap:8px; }
+.fb-cancel {
+  background:none; border:1px solid var(--border2); color:var(--dim);
+  padding:7px 16px; border-radius:5px; cursor:pointer;
+  font-family:'Share Tech Mono',monospace; font-size:.65rem;
+}
+.fb-cancel:hover { border-color:var(--text); color:var(--text); }
+.fb-submit {
+  background:linear-gradient(135deg, var(--cyan), var(--green));
+  border:none; color:var(--bg); font-weight:bold;
+  padding:7px 20px; border-radius:5px; cursor:pointer;
+  font-family:'Share Tech Mono',monospace; font-size:.65rem;
+  transition:opacity .2s;
+}
+.fb-submit:hover { opacity:.85; }
+.fb-submit:disabled { opacity:.4; cursor:not-allowed; }
 .diag-modal {
   display:none; position:fixed; inset:0; z-index:10000;
   background: rgba(0,0,0,.7); backdrop-filter:blur(4px);
@@ -229,15 +304,31 @@ main { padding:20px 24px; max-width:1600px; margin:0 auto; }
   display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
 }
 .stat-card {
-  background:var(--bg2); border:1px solid var(--border);
-  border-radius:3px; padding:18px;
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border:1px solid var(--border);
+  border-radius:8px; padding:20px;
   position:relative; overflow:hidden;
-  transition:border-color .3s, box-shadow .3s;
+  transition:border-color .3s, box-shadow .3s, transform .2s;
+  backdrop-filter: blur(4px);
 }
-.stat-card:hover { border-color:var(--c); box-shadow:0 0 20px rgba(0,0,0,.4); }
+.stat-card:hover { 
+  border-color:var(--c); 
+  box-shadow:0 0 30px var(--glow-cyan), 0 8px 32px rgba(0,0,0,.5);
+  transform: translateY(-1px);
+}
+.stat-card.card-cpu:hover  { box-shadow:0 0 30px var(--glow-cyan),  0 8px 32px rgba(0,0,0,.5); }
+.stat-card.card-gpu:hover  { box-shadow:0 0 30px var(--glow-green), 0 8px 32px rgba(0,0,0,.5); }
+.stat-card.card-ram:hover  { box-shadow:0 0 30px var(--glow-purple),0 8px 32px rgba(0,0,0,.5); }
+.stat-card.card-net:hover  { box-shadow:0 0 30px var(--glow-orange),0 8px 32px rgba(0,0,0,.5); }
 .stat-card::before {
   content:''; position:absolute; top:0; left:0; right:0; height:2px;
-  background:var(--c, var(--cyan)); box-shadow:0 0 12px var(--c, var(--cyan));
+  background:linear-gradient(90deg, transparent, var(--c, var(--cyan)), transparent);
+  box-shadow:0 0 16px var(--c, var(--cyan));
+}
+.stat-card::after {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background: linear-gradient(135deg, rgba(255,255,255,.02) 0%, transparent 60%);
+  border-radius:8px;
 }
 .card-cpu    { --c: var(--cyan); }
 .card-gpu    { --c: var(--green); }
@@ -277,8 +368,15 @@ main { padding:20px 24px; max-width:1600px; margin:0 auto; }
   display:grid; grid-template-columns:1fr 1fr; gap:14px;
 }
 .chart-card {
-  background:var(--bg2); border:1px solid var(--border);
-  border-radius:3px; padding:18px;
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border:1px solid var(--border);
+  border-radius:8px; padding:20px;
+  backdrop-filter: blur(4px);
+  transition: border-color .3s, box-shadow .3s;
+}
+.chart-card:hover {
+  border-color: var(--border3);
+  box-shadow: 0 0 20px rgba(0,0,0,.4);
 }
 .chart-hdr {
   display:flex; justify-content:space-between; align-items:center;
@@ -407,37 +505,41 @@ footer {
 
 <!-- HEADER -->
 <header>
-  <div class="logo" style="display:flex;align-items:center;gap:10px;">
-    <svg width="34" height="34" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <div class="logo" style="display:flex;align-items:center;gap:4px;">
+    <svg width="32" height="32" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <clipPath id="shield-clip">
           <path d="M80 12 L138 36 L138 90 Q138 130 80 150 Q22 130 22 90 L22 36 Z"/>
         </clipPath>
         <radialGradient id="sg" cx="50%" cy="45%" r="55%">
-          <stop offset="0%" stop-color="#00ff88" stop-opacity="0.15"/>
+          <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.12"/>
           <stop offset="100%" stop-color="#00ff88" stop-opacity="0"/>
         </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
+      <!-- Shield body -->
       <path d="M80 12 L138 36 L138 90 Q138 130 80 150 Q22 130 22 90 L22 36 Z" fill="url(#sg)"/>
-      <g clip-path="url(#shield-clip)" opacity="0.25">
-        <circle cx="80" cy="76" r="18" fill="none" stroke="#00ff88" stroke-width="1"/>
-        <circle cx="80" cy="76" r="34" fill="none" stroke="#00ff88" stroke-width="1"/>
-        <circle cx="80" cy="76" r="50" fill="none" stroke="#00ff88" stroke-width="1"/>
-        <circle cx="80" cy="76" r="66" fill="none" stroke="#00ff88" stroke-width="1"/>
-        <path d="M80 76 L80 10 A66 66 0 0 1 137 95 Z" fill="#00ff88" opacity="0.12"/>
-        <line x1="80" y1="76" x2="80" y2="10" stroke="#00ff88" stroke-width="1" opacity="0.6"/>
-        <line x1="80" y1="76" x2="137" y2="95" stroke="#00ff88" stroke-width="1" opacity="0.3"/>
+      <!-- Radar rings -->
+      <g clip-path="url(#shield-clip)" opacity="0.2">
+        <circle cx="80" cy="76" r="22" fill="none" stroke="#00e5ff" stroke-width="1"/>
+        <circle cx="80" cy="76" r="40" fill="none" stroke="#00e5ff" stroke-width="1"/>
+        <circle cx="80" cy="76" r="58" fill="none" stroke="#00e5ff" stroke-width="1"/>
+        <path d="M80 76 L80 16 A64 64 0 0 1 135 100 Z" fill="#00ff88" opacity="0.1"/>
       </g>
-      <path d="M80 12 L138 36 L138 90 Q138 130 80 150 Q22 130 22 90 L22 36 Z" fill="none" stroke="#00ff88" stroke-width="2.5" stroke-linejoin="round"/>
-      <line x1="68" y1="46" x2="68" y2="106" stroke="#00ff88" stroke-width="5" stroke-linecap="round"/>
-      <line x1="68" y1="76" x2="104" y2="46" stroke="#00ff88" stroke-width="5" stroke-linecap="round"/>
-      <line x1="68" y1="76" x2="104" y2="106" stroke="#00ff88" stroke-width="5" stroke-linecap="round"/>
-      <ellipse cx="80" cy="76" rx="16" ry="10" fill="#07090d" stroke="#00ff8844" stroke-width="1"/>
-      <circle cx="80" cy="76" r="9" fill="#00ff8818" stroke="#00ff88" stroke-width="1.5"/>
-      <circle cx="80" cy="76" r="4.5" fill="#00ff88"/>
-      <circle cx="83" cy="73" r="1.8" fill="#00ff88cc"/>
-    </svg>
-    KAM <em style="font-size:.7rem;letter-spacing:2px;">SENTINEL</em>
+      <!-- Shield outline with glow -->
+      <path d="M80 12 L138 36 L138 90 Q138 130 80 150 Q22 130 22 90 L22 36 Z" 
+            fill="none" stroke="#00ff88" stroke-width="2.5" stroke-linejoin="round" filter="url(#glow)"/>
+      <!-- K letterform -->
+      <line x1="66" y1="44" x2="66" y2="108" stroke="#00ff88" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="66" y1="76" x2="102" y2="44" stroke="#00ff88" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="66" y1="76" x2="102" y2="108" stroke="#00ff88" stroke-width="5.5" stroke-linecap="round"/>
+      <!-- Center eye -->
+      <circle cx="80" cy="76" r="5" fill="#00ff88" opacity="0.9"/>
+      <circle cx="82" cy="74" r="2" fill="#00e5ff" opacity="0.8"/>
+    </svg><span style="color:var(--green);text-shadow:0 0 20px rgba(0,255,136,.4);">AM</span>&nbsp;<em style="font-size:.7rem;letter-spacing:2px;color:var(--dim2);">SENTINEL</em>
   </div>
   <div class="hdr-meta">
     <div class="live-dot"></div>
@@ -453,6 +555,8 @@ footer {
       </select>
     </div>
     <button class="settings-btn" id="overlay-btn" onclick="toggleOverlay()">⊞ OVERLAY</button>
+    <button class="settings-btn" id="diag-test-btn" onclick="toggleDiagTestMode()" title="Simulate N/A states for testing">🧪 TEST MODE</button>
+    <button class="settings-btn" onclick="openFeedback()">💬 FEEDBACK</button>
     <button class="settings-btn" onclick="openSettings()">⚙ THRESHOLDS</button>
   </div>
 </header>
@@ -671,6 +775,28 @@ footer {
   </div>
 </div>
 
+<!-- FEEDBACK MODAL -->
+<div class="feedback-modal" id="feedback-modal">
+  <div class="feedback-box">
+    <div class="feedback-title">💬 SEND FEEDBACK</div>
+    <div class="feedback-cats">
+      <button class="fb-cat active" data-cat="bug" onclick="selectCat(this)">🐛 BUG</button>
+      <button class="fb-cat" data-cat="performance" onclick="selectCat(this)">⚡ PERFORMANCE</button>
+      <button class="fb-cat" data-cat="feature" onclick="selectCat(this)">✨ FEATURE REQUEST</button>
+      <button class="fb-cat" data-cat="general" onclick="selectCat(this)">💡 GENERAL</button>
+    </div>
+    <textarea class="fb-textarea" id="fb-message" placeholder="Describe the issue or idea... The more detail the better!"></textarea>
+    <div class="fb-footer">
+      <span class="fb-note">🔒 No personal data collected</span>
+      <div class="fb-actions">
+        <button class="fb-cancel" onclick="closeFeedback()">CANCEL</button>
+        <button class="fb-submit" id="fb-submit-btn" onclick="submitFeedback()">SEND →</button>
+      </div>
+    </div>
+    <div id="fb-result" style="margin-top:12px; font-size:.75rem; display:none; text-align:center;"></div>
+  </div>
+</div>
+
 <!-- DIAGNOSTIC MODAL -->
 <div class="diag-modal" id="diag-modal">
   <div class="diag-box">
@@ -779,7 +905,7 @@ const mkChart = (id, datasets, yMax) => new Chart(document.getElementById(id), {
 const line = (color, label) => ({
   label, data:[], borderColor:color,
   backgroundColor: color.replace(')',', 0.08)').replace('rgb','rgba'),
-  borderWidth:1.5, pointRadius:0, tension:.4, fill:true
+  borderWidth:1.5, pointRadius:0, tension:.4, fill:true, spanGaps:true
 });
 
 let chartUsage, chartTemp;
@@ -992,15 +1118,71 @@ DOM['settings-modal']?.addEventListener('click', function(e) {
   if(e.target === this) closeSettings();
 });
 
+// ── Feedback ──────────────────────────────────────────────────────────────
+let _fbCat = 'bug';
+
+function openFeedback() {
+  document.getElementById('feedback-modal').classList.add('open');
+  document.getElementById('fb-message').focus();
+}
+
+function closeFeedback() {
+  document.getElementById('feedback-modal').classList.remove('open');
+  document.getElementById('fb-message').value = '';
+  document.getElementById('fb-result').style.display = 'none';
+}
+
+function selectCat(btn) {
+  document.querySelectorAll('.fb-cat').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _fbCat = btn.dataset.cat;
+}
+
+async function submitFeedback() {
+  const msg = document.getElementById('fb-message').value.trim();
+  const btn = document.getElementById('fb-submit-btn');
+  const res = document.getElementById('fb-result');
+  if(!msg) { res.textContent='Please enter a message'; res.style.color='var(--red)'; res.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = '⏳ SENDING...';
+  try {
+    const r = await fetch('/api/feedback', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ category: _fbCat, message: msg })
+    });
+    const data = await r.json();
+    res.textContent = data.message || 'Sent!';
+    res.style.color = 'var(--green)'; res.style.display = 'block';
+    btn.textContent = '✓ SENT';
+    setTimeout(closeFeedback, 2000);
+  } catch(e) {
+    res.textContent = 'Failed to send — check server is running';
+    res.style.color = 'var(--red)'; res.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'SEND →';
+  }
+}
+
 // ── Diagnostics ───────────────────────────────────────────────────────────
 let _diagData = {};
+let _diagTestMode = false;
 
 async function loadDiagnostics() {
   try {
-    const r = await fetch('/api/diagnostics');
+    const url = '/api/diagnostics' + (_diagTestMode ? '?test=1' : '');
+    const r = await fetch(url);
     _diagData = await r.json();
     updateDiagIndicators();
   } catch(e) {}
+}
+
+function toggleDiagTestMode() {
+  _diagTestMode = !_diagTestMode;
+  const btn = document.getElementById('diag-test-btn');
+  if(btn) {
+    btn.textContent = _diagTestMode ? '🧪 TEST MODE ON' : '🧪 TEST MODE';
+    btn.style.borderColor = _diagTestMode ? 'var(--yellow)' : '';
+    btn.style.color = _diagTestMode ? 'var(--yellow)' : '';
+  }
+  loadDiagnostics();
 }
 
 function updateDiagIndicators() {
