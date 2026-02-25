@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAM Sentinel — Logo Concepts</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #07090d;
+  --bg2:    #0c1018;
+  --border: #1a2535;
+  --cyan:   #00d4ff;
+  --green:  #00ff88;
+  --orange: #ff7043;
+  --dim:    #3d5166;
+  --text:   #b8ccd8;
+  --white:  #e8f0f8;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  padding: 40px 24px;
+}
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none;
+  background-image: linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);
+  background-size: 48px 48px;
+}
+
+header { text-align:center; margin-bottom:48px; }
+.page-title {
+  font-family:'Share Tech Mono',monospace;
+  font-size:1rem; letter-spacing:6px; color:var(--cyan);
+  text-shadow:0 0 20px rgba(0,212,255,.4);
+  margin-bottom:8px;
+}
+.page-sub { font-size:.85rem; color:var(--dim); letter-spacing:2px; }
+
+.concepts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto 48px;
+}
+
+.concept-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .3s, transform .2s;
+}
+.concept-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--card-c, var(--cyan));
+  box-shadow: 0 0 12px var(--card-c, var(--cyan));
+}
+.concept-card:hover { border-color: var(--card-c, var(--cyan)); transform: translateY(-3px); }
+.concept-card.selected {
+  border-color: var(--card-c, var(--cyan));
+  box-shadow: 0 0 30px rgba(0,212,255,.12);
+}
+
+.c1 { --card-c: var(--cyan); }
+.c2 { --card-c: var(--green); }
+.c3 { --card-c: var(--orange); }
+
+.logo-stage {
+  width: 180px; height: 180px;
+  margin: 0 auto 24px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+
+.concept-num {
+  font-family:'Share Tech Mono',monospace;
+  font-size:.6rem; letter-spacing:3px; color:var(--dim);
+  margin-bottom:8px;
+}
+.concept-name {
+  font-size:1.1rem; font-weight:700; color:var(--white);
+  margin-bottom:6px; letter-spacing:1px;
+}
+.concept-desc {
+  font-size:.82rem; color:var(--dim); line-height:1.5;
+}
+
+/* Selected indicator */
+.select-badge {
+  display:none; position:absolute; top:12px; right:12px;
+  font-family:'Share Tech Mono',monospace; font-size:.55rem;
+  letter-spacing:2px; color:var(--cyan);
+  border:1px solid var(--cyan); padding:2px 6px; border-radius:2px;
+}
+.concept-card.selected .select-badge { display:block; }
+
+/* Preview row */
+.preview-section {
+  max-width:1100px; margin:0 auto;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:4px; padding:32px;
+  display:none;
+}
+.preview-section.visible { display:block; }
+.preview-title {
+  font-family:'Share Tech Mono',monospace; font-size:.65rem;
+  letter-spacing:3px; color:var(--dim); margin-bottom:24px;
+  text-align:center;
+}
+.preview-sizes {
+  display:flex; align-items:center; justify-content:center;
+  gap:48px; flex-wrap:wrap;
+}
+.size-item { text-align:center; }
+.size-label {
+  font-family:'Share Tech Mono',monospace; font-size:.55rem;
+  letter-spacing:2px; color:var(--dim); margin-top:10px;
+}
+
+/* ── LOGO 1: Signal Pulse K ──────────────────────────────────────────────── */
+.pulse-line {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: drawLine 1.5s ease forwards;
+}
+.pulse-glow {
+  animation: glowPulse 2.5s ease-in-out infinite 1.5s;
+}
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes glowPulse {
+  0%,100% { filter: drop-shadow(0 0 4px #00d4ff); }
+  50%      { filter: drop-shadow(0 0 14px #00d4ff) drop-shadow(0 0 28px #00d4ff88); }
+}
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── LOGO 2: Shield + K ──────────────────────────────────────────────────── */
+.shield-draw {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: drawLine 1.8s ease forwards .2s;
+}
+.shield-fill {
+  opacity: 0;
+  animation: fadeIn .6s ease forwards 1.8s;
+}
+.k-draw {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: drawLine 1s ease forwards 1.4s;
+}
+@keyframes fadeIn {
+  to { opacity:1; }
+}
+.shield-pulse {
+  animation: shieldGlow 3s ease-in-out infinite 2s;
+}
+@keyframes shieldGlow {
+  0%,100% { filter: drop-shadow(0 0 6px #00ff8866); }
+  50%      { filter: drop-shadow(0 0 18px #00ff88aa) drop-shadow(0 0 36px #00ff8844); }
+}
+
+/* ── LOGO 3: Eye + Radar K ───────────────────────────────────────────────── */
+.radar-sweep {
+  transform-origin: 90px 90px;
+  animation: sweep 3s linear infinite 1s;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+@keyframes sweep {
+  0%   { opacity:1; transform: rotate(0deg); }
+  100% { opacity:1; transform: rotate(360deg); }
+}
+.eye-iris {
+  animation: eyePulse 3s ease-in-out infinite 2s;
+}
+@keyframes eyePulse {
+  0%,100% { r: 10; opacity:.9; }
+  50%      { r: 13; opacity:1; }
+}
+.k-stroke {
+  stroke-dasharray: 250;
+  stroke-dashoffset: 250;
+  animation: drawLine 1.2s ease forwards .3s;
+}
+.rings-fade {
+  opacity:0;
+  animation: fadeIn .8s ease forwards 1s;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="page-title">KAM SENTINEL — LOGO CONCEPTS</div>
+  <div class="page-sub">Click a concept to preview at multiple sizes</div>
+</header>
+
+<div class="concepts">
+
+  <!-- CONCEPT 1: Signal Pulse K -->
+  <div class="concept-card c1" onclick="selectConcept(1)">
+    <span class="select-badge">SELECTED</span>
+    <div class="concept-num">CONCEPT 01</div>
+    <div class="logo-stage">
+      <svg id="logo1" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background circle -->
+        <circle cx="80" cy="80" r="72" fill="#0c1018" stroke="#1a2535" stroke-width="1"/>
+        <!-- Signal pulse line with K spike -->
+        <polyline class="pulse-line pulse-glow"
+          points="8,80 30,80 38,80 46,55 54,105 62,80 72,80 90,44 108,116 118,80 152,80"
+          stroke="#00d4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <!-- K letterform highlight at center spike -->
+        <text x="80" y="88" font-family="'Share Tech Mono',monospace" font-size="11"
+          fill="#00d4ff44" text-anchor="middle" letter-spacing="8"
+          style="animation: fadeInUp .5s ease forwards 2s; opacity:0">SENTINEL</text>
+        <!-- Corner brackets -->
+        <path d="M16,16 L16,28 M16,16 L28,16" stroke="#00d4ff33" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M144,16 L144,28 M144,16 L132,16" stroke="#00d4ff33" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M16,144 L16,132 M16,144 L28,144" stroke="#00d4ff33" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M144,144 L144,132 M144,144 L132,144" stroke="#00d4ff33" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="concept-name">Signal Pulse K</div>
+    <div class="concept-desc">The K letter emerges from a flatline ECG pulse — directly communicating monitoring & performance in one mark</div>
+  </div>
+
+  <!-- CONCEPT 2: Shield + Eye in K + Radar (STATIC) -->
+  <div class="concept-card c2" onclick="selectConcept(2)" style="--card-c: var(--green)">
+    <span class="select-badge">SELECTED</span>
+    <div class="concept-num">CONCEPT 02</div>
+    <div class="logo-stage">
+      <svg id="logo2" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Radar rings inside shield (background layer) -->
+        <clipPath id="shieldClip">
+          <path d="M80 16 L140 42 L140 90 C140 122 80 150 80 150 C80 150 20 122 20 90 L20 42 Z"/>
+        </clipPath>
+        <g clip-path="url(#shieldClip)">
+          <circle cx="80" cy="76" r="62" stroke="#00ff8810" stroke-width="1" fill="none"/>
+          <circle cx="80" cy="76" r="44" stroke="#00ff8818" stroke-width="1" fill="none"/>
+          <circle cx="80" cy="76" r="28" stroke="#00ff8824" stroke-width="1" fill="none"/>
+          <circle cx="80" cy="76" r="13" stroke="#00ff8830" stroke-width="1" fill="none"/>
+          <line x1="80" y1="16" x2="80" y2="150" stroke="#00ff8810" stroke-width="1"/>
+          <line x1="20" y1="76" x2="140" y2="76" stroke="#00ff8810" stroke-width="1"/>
+          <path d="M80,76 L80,14 A62,62 0 0,1 126,48 Z" fill="#00ff8810"/>
+          <line x1="80" y1="76" x2="126" y2="48" stroke="#00ff8840" stroke-width="1" stroke-linecap="round"/>
+          <line x1="80" y1="76" x2="80" y2="14" stroke="#00ff8855" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+
+        <!-- Shield fill -->
+        <path d="M80 16 L140 42 L140 90 C140 122 80 150 80 150 C80 150 20 122 20 90 L20 42 Z"
+          fill="#00ff8806"/>
+        <!-- Shield outer outline -->
+        <path d="M80 16 L140 42 L140 90 C140 122 80 150 80 150 C80 150 20 122 20 90 L20 42 Z"
+          stroke="#00ff88" stroke-width="2" stroke-linejoin="round" fill="none"/>
+        <!-- Shield inner border -->
+        <path d="M80 26 L130 48 L130 90 C130 116 80 140 80 140 C80 140 30 116 30 90 L30 48 Z"
+          stroke="#00ff8828" stroke-width="1" stroke-linejoin="round" fill="none"/>
+
+        <!-- K letterform - pivot at true optical centroid y=76 -->
+        <line x1="58" y1="42" x2="58" y2="110" stroke="#00ff88" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="58" y1="76" x2="102" y2="42" stroke="#00ff88" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="58" y1="76" x2="102" y2="110" stroke="#00ff88" stroke-width="4.5" stroke-linecap="round"/>
+
+        <!-- Eye centered at y=76 — shifted right for visual balance -->
+        <ellipse cx="80" cy="76" rx="16" ry="9"
+          fill="#07090d" stroke="#00ff8855" stroke-width="1"/>
+        <circle cx="80" cy="76" r="7" fill="#00ff8812" stroke="#00ff88" stroke-width="1.5"/>
+        <circle cx="80" cy="76" r="3.5" fill="#00ff88"/>
+        <circle cx="82" cy="74" r="1.2" fill="#00ff88cc"/>
+
+        <!-- Shield corner dots (detail) -->
+        <circle cx="80" cy="20" r="2" fill="#00ff88"/>
+        <circle cx="136" cy="44" r="1.5" fill="#00ff8866"/>
+        <circle cx="136" cy="90" r="1.5" fill="#00ff8866"/>
+      </svg>
+    </div>
+    <div class="concept-name">Shield · Eye · Radar</div>
+    <div class="concept-desc">Shield for protection, radar sweep for monitoring, eye in the K for awareness — all three concepts merged into one mark</div>
+  </div>
+
+  <!-- CONCEPT 3: Eye in K + Radar Sweep -->
+  <div class="concept-card c3" onclick="selectConcept(3)">
+    <span class="select-badge">SELECTED</span>
+    <div class="concept-num">CONCEPT 03</div>
+    <div class="logo-stage">
+      <svg id="logo3" width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer ring -->
+        <circle cx="90" cy="90" r="78" stroke="#ff704322" stroke-width="1" fill="#0c1018"/>
+        <!-- Radar rings -->
+        <g class="rings-fade">
+          <circle cx="90" cy="90" r="60" stroke="#ff704318" stroke-width="1" fill="none"/>
+          <circle cx="90" cy="90" r="40" stroke="#ff704325" stroke-width="1" fill="none"/>
+          <circle cx="90" cy="90" r="20" stroke="#ff704335" stroke-width="1" fill="none"/>
+          <!-- Crosshair lines -->
+          <line x1="90" y1="12" x2="90" y2="168" stroke="#ff704315" stroke-width="1"/>
+          <line x1="12" y1="90" x2="168" y2="90" stroke="#ff704315" stroke-width="1"/>
+        </g>
+        <!-- Radar sweep -->
+        <g class="radar-sweep">
+          <path d="M90,90 L90,30" stroke="#ff7043" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M90,90 L90,30" stroke="#ff7043aa" stroke-width="8"
+            stroke-linecap="round" opacity="0.3"/>
+          <!-- Sweep gradient wedge -->
+          <path d="M90,90 L90,30 A60,60 0 0,1 120,55 Z" fill="#ff704318"/>
+        </g>
+        <!-- K letterform centered in the 180x180 canvas, pivot at (90,90) -->
+        <line class="k-stroke" x1="68" y1="54" x2="68" y2="126" stroke="#ff7043" stroke-width="5" stroke-linecap="round"/>
+        <line class="k-stroke" x1="68" y1="90" x2="112" y2="54" stroke="#ff7043" stroke-width="5" stroke-linecap="round"/>
+        <line class="k-stroke" x1="68" y1="90" x2="112" y2="126" stroke="#ff7043" stroke-width="5" stroke-linecap="round"/>
+        <!-- Eye at radar center (90,90) — centered on the canvas and radar rings -->
+        <ellipse cx="90" cy="90" rx="18" ry="11" fill="#0c1018" stroke="#ff704366" stroke-width="1"/>
+        <circle cx="90" cy="90" r="10" fill="#ff704322" stroke="#ff7043" stroke-width="1.5"/>
+        <circle cx="90" cy="90" r="5" fill="#ff7043"/>
+        <circle cx="93" cy="87" r="2" fill="#ff7043dd"/>
+        <!-- Outer ring tick marks -->
+        <g class="rings-fade" stroke="#ff704340" stroke-width="1">
+          <line x1="90" y1="12" x2="90" y2="20"/>
+          <line x1="90" y1="160" x2="90" y2="168"/>
+          <line x1="12" y1="90" x2="20" y2="90"/>
+          <line x1="160" y1="90" x2="168" y2="90"/>
+        </g>
+      </svg>
+    </div>
+    <div class="concept-name">Eye + Radar K</div>
+    <div class="concept-desc">The K becomes a watchful eye with a live radar sweep — the sentinel that never stops scanning, always alert</div>
+  </div>
+
+</div>
+
+<!-- SIZE PREVIEW -->
+<div class="preview-section" id="preview-section">
+  <div class="preview-title" id="preview-title">— SELECT A CONCEPT TO PREVIEW —</div>
+  <div class="preview-sizes" id="preview-sizes"></div>
+</div>
+
+<script>
+let selected = null;
+
+const svgSources = {
+  1: () => document.getElementById('logo1').outerHTML,
+  2: () => document.getElementById('logo2').outerHTML,
+  3: () => document.getElementById('logo3').outerHTML,
+};
+
+const names = {
+  1: 'CONCEPT 01 — SIGNAL PULSE K',
+  2: 'CONCEPT 02 — SHIELD + K',
+  3: 'CONCEPT 03 — EYE + RADAR K',
+};
+
+const sizes = [
+  { label:'256×256 (App Icon)', w:256, h:256 },
+  { label:'128×128 (Taskbar)',  w:128, h:128 },
+  { label:'64×64 (Small)',      w:64,  h:64  },
+  { label:'32×32 (Favicon)',    w:32,  h:32  },
+];
+
+// Logo 3 uses 180px viewbox
+const viewBoxes = { 1:'0 0 160 160', 2:'0 0 160 160', 3:'0 0 180 180' };
+// Logo 2 uses clipPath - note static preview strips animations only
+
+function selectConcept(n) {
+  document.querySelectorAll('.concept-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.concept-card')[n-1].classList.add('selected');
+
+  const section = document.getElementById('preview-section');
+  const title   = document.getElementById('preview-title');
+  const sizesEl = document.getElementById('preview-sizes');
+
+  section.classList.add('visible');
+  title.textContent = `SIZE PREVIEW — ${names[n]}`;
+
+  const vb = viewBoxes[n];
+  sizesEl.innerHTML = sizes.map(s => {
+    const svgId = `logo${n}`;
+    const origSvg = document.getElementById(svgId);
+    // Clone the SVG and resize it
+    const clone = origSvg.cloneNode(true);
+    clone.setAttribute('width', s.w);
+    clone.setAttribute('height', s.h);
+    clone.setAttribute('viewBox', vb);
+    clone.removeAttribute('id');
+    // Remove animations for static preview
+    clone.querySelectorAll('[class]').forEach(el => {
+      el.style.animation = 'none';
+      el.style.strokeDashoffset = '0';
+      el.style.opacity = '1';
+    });
+    return `
+      <div class="size-item">
+        <div style="background:#0c1018;border:1px solid #1a2535;border-radius:4px;padding:12px;display:inline-block">
+          ${clone.outerHTML}
+        </div>
+        <div class="size-label">${s.label}</div>
+      </div>`;
+  }).join('');
+
+  selected = n;
+}
+</script>
+</body>
+</html>

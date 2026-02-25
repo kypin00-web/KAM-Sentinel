@@ -23,6 +23,8 @@ KAM Sentinel is a **portable Windows PC performance monitoring dashboard** built
 | 10 | Update notifications (banner only — download flow not yet built) | 1 | ⚠️ Partial |
 | 11 | In-game overlay (draggable, configurable, always-on-top) | 1 | ✅ Complete |
 | 12 | Customizable refresh rate (2s/5s/10s/30s/60s) | 1 | ✅ Complete |
+| 13 | Machine benchmarking — compare stats against other machines | 2 | 🔜 Next |
+| 14 | Idiot-proof onboarding — detect missing deps, explain why, let user decide | 2 | 🔜 Next |
 
 ---
 

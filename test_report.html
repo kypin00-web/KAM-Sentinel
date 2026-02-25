@@ -19,13 +19,13 @@
   tr:hover td { background:#0c1018; }
 </style></head><body>
 <h1>⬡ KAM SENTINEL — TEST REPORT</h1>
-<div class="meta">Generated: 2026-02-25 06:17:22 &nbsp;|&nbsp; v1.2 Phase 1</div>
-<div class="status">✓ ALL PASSED</div>
+<div class="meta">Generated: 2026-02-25 10:36:47 &nbsp;|&nbsp; v1.2 Phase 1</div>
+<div class="status">✓ 1 WARNINGS</div>
 <div class="summary">
-  <div class="sum-item"><div class="sum-num pass-num">55</div><div class="sum-label">PASSED</div></div>
-  <div class="sum-item"><div class="sum-num warn-num">0</div><div class="sum-label">WARNINGS</div></div>
+  <div class="sum-item"><div class="sum-num pass-num">70</div><div class="sum-label">PASSED</div></div>
+  <div class="sum-item"><div class="sum-num warn-num">1</div><div class="sum-label">WARNINGS</div></div>
   <div class="sum-item"><div class="sum-num fail-num">0</div><div class="sum-label">FAILED</div></div>
-  <div class="sum-item"><div class="sum-num total-num">55</div><div class="sum-label">TOTAL</div></div>
+  <div class="sum-item"><div class="sum-num total-num">59</div><div class="sum-label">TOTAL</div></div>
 </div>
 <table><tr class="section"><td colspan="2">── 1. Import & Module Check</td></tr>
 <tr><td class="icon pass">✓</td><td>thresholds.py imports cleanly</td></tr>
@@ -47,13 +47,15 @@
 <tr><td class="icon pass">✓</td><td>server.py uses deque(maxlen=) for history buffers</td></tr>
 <tr><td class="icon pass">✓</td><td>No list.pop(0) calls found — O(1) operations confirmed</td></tr>
 <tr><td class="icon pass">✓</td><td>Log batching present — disk I/O not on every poll</td></tr>
-<tr><td class="icon pass">✓</td><td>Log rotation present — logs won't grow unbounded</td></tr>
+<tr><td class="icon pass">✓</td><td>Log rotation present — daily log files prevent unbounded growth</td></tr>
 <tr class="section"><td colspan="2">── 4. Performance & Architecture</td></tr>
 <tr><td class="icon pass">✓</td><td>Background daemon thread present — Flask requests never block on hardware I/O</td></tr>
 <tr><td class="icon pass">✓</td><td>WMI result caching present — slow COM calls max once per 30s</td></tr>
-<tr><td class="icon pass">✓</td><td>cpu_percent(interval=0) — non-blocking delta measurement</td></tr>
 <tr><td class="icon pass">✓</td><td>Flask threaded=True — concurrent request handling enabled</td></tr>
 <tr><td class="icon pass">✓</td><td>Stat cache object present — Flask serves pre-computed data</td></tr>
+<tr><td class="icon pass">✓</td><td>GPU worker thread present — nvidia-smi never blocks polling thread</td></tr>
+<tr><td class="icon pass">✓</td><td>get_gpu_cached() used in poll — GPU reads are instant/non-blocking</td></tr>
+<tr><td class="icon pass">✓</td><td>CREATE_NO_WINDOW set — no CMD flash when running as .exe</td></tr>
 <tr><td class="icon pass">✓</td><td>cpu_percent(interval=0) returns in 0.1ms — non-blocking confirmed</td></tr>
 <tr class="section"><td colspan="2">── 5. Warning Engine Logic</td></tr>
 <tr><td class="icon pass">✓</td><td>CPU critical threshold fires at 95°C (limit: 90°C)</td></tr>
@@ -71,12 +73,12 @@
 <tr><td class="icon pass">✓</td><td>CLAUDE.md present</td></tr>
 <tr><td class="icon pass">✓</td><td>Original profile backup is skip-if-exists (never overwritten)</td></tr>
 <tr><td class="icon pass">✓</td><td>Flask debug=False — production safe</td></tr>
-<tr><td class="icon pass">✓</td><td>Version string found: v1.2</td></tr>
+<tr><td class="icon pass">✓</td><td>Version string found: v1.3</td></tr>
 <tr class="section"><td colspan="2">── 7. Live Hardware Reading</td></tr>
-<tr><td class="icon pass">✓</td><td>CPU usage readable: 5.8%</td></tr>
-<tr><td class="icon pass">✓</td><td>RAM readable: 31.9 GB total, 26.0% used</td></tr>
-<tr><td class="icon pass">✓</td><td>Network counters readable: 445.6 MB sent</td></tr>
-<tr><td class="icon pass">✓</td><td>10x poll cycle avg: 5.16ms — excellent performance</td></tr>
+<tr><td class="icon pass">✓</td><td>CPU usage readable: 7.6%</td></tr>
+<tr><td class="icon pass">✓</td><td>RAM readable: 31.9 GB total, 29.0% used</td></tr>
+<tr><td class="icon pass">✓</td><td>Network counters readable: 13.5 MB sent</td></tr>
+<tr><td class="icon pass">✓</td><td>10x poll cycle avg: 5.12ms — excellent performance</td></tr>
 <tr class="section"><td colspan="2">── 8. Dashboard HTML Checks</td></tr>
 <tr><td class="icon pass">✓</td><td>Concept 2 SVG logo</td></tr>
 <tr><td class="icon pass">✓</td><td>Overlay HTML present</td></tr>
@@ -90,5 +92,20 @@
 <tr><td class="icon pass">✓</td><td>Chart.js loaded</td></tr>
 <tr><td class="icon pass">✓</td><td>Goal 10 update check</td></tr>
 <tr><td class="icon pass">✓</td><td>Overlay drag support</td></tr>
+<tr><td class="icon pass">✓</td><td>Browser close shutdown</td></tr>
+<tr><td class="icon pass">✓</td><td>Shutdown endpoint</td></tr>
+<tr class="section"><td colspan="2">── 9. Security Scan</td></tr>
+<tr><td class="icon pass">✓</td><td>Rate limiting present — API protected from hammering</td></tr>
+<tr><td class="icon pass">✓</td><td>Input validation on POST endpoints — no arbitrary data written to disk</td></tr>
+<tr><td class="icon pass">✓</td><td>No eval()/exec() — no code injection risk</td></tr>
+<tr><td class="icon pass">✓</td><td>No shell=True subprocess calls — no shell injection risk</td></tr>
+<tr><td class="icon pass">✓</td><td>No hardcoded secrets/passwords/tokens found</td></tr>
+<tr><td class="icon pass">✓</td><td>No PII fields (username/email/password) in server code</td></tr>
+<tr><td class="icon pass">✓</td><td>Auto-fix whitelist present — only safe pip installs allowed</td></tr>
+<tr><td class="icon pass">✓</td><td>CREATE_NO_WINDOW on subprocesses — no CMD flash, no visible attack surface</td></tr>
+<tr><td class="icon pass">✓</td><td>Flask debug=False — no debugger PIN exposure</td></tr>
+<tr><td class="icon pass">✓</td><td>No risky innerHTML with server data — XSS risk low</td></tr>
+<tr><td class="icon warn">⚠</td><td class="warn">Server binds to 0.0.0.0 — accessible on local network (by design, but note for awareness)</td></tr>
+<tr><td class="icon pass">✓</td><td>Auto-fix endpoint has strict whitelist — only approved pip installs</td></tr>
 </table>
 </body></html>

@@ -140,7 +140,41 @@ header {
   cursor:pointer; transition:all .2s;
 }
 .overlay-toggle.active { border-color:var(--green); color:var(--green); }
-.overlay-toggle:hover { border-color:var(--cyan); color:var(--cyan); }
+.diag-btn {
+  background: none; border: 1px solid var(--yellow);
+  color: var(--yellow); font-size: .6rem; padding: 1px 5px;
+  border-radius: 3px; cursor: pointer; margin-left: 6px;
+  animation: blink 2s infinite;
+  vertical-align: middle;
+}
+.diag-btn:hover { background: var(--yellow); color: var(--bg); }
+
+/* ── DIAGNOSTIC MODAL ────────────────────────────────────────────────────── */
+.diag-modal {
+  display:none; position:fixed; inset:0; z-index:10000;
+  background: rgba(0,0,0,.7); backdrop-filter:blur(4px);
+  align-items:center; justify-content:center;
+}
+.diag-modal.open { display:flex; }
+.diag-box {
+  background: var(--bg2); border: 1px solid var(--yellow);
+  border-radius: 8px; padding: 24px; max-width: 480px; width: 90%;
+  box-shadow: 0 0 40px rgba(255,214,0,.1);
+}
+.diag-title { color:var(--yellow); font-size:.8rem; letter-spacing:3px; margin-bottom:16px; }
+.diag-status { font-size:.85rem; color:var(--text); margin-bottom:12px; line-height:1.6; }
+.diag-fix { font-family:'Share Tech Mono',monospace; font-size:.75rem;
+  background:var(--bg3); border:1px solid var(--border2);
+  color:var(--cyan); padding:8px 12px; border-radius:4px; margin-bottom:16px; }
+.diag-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.diag-close { background:none; border:1px solid var(--border2); color:var(--dim);
+  padding:6px 16px; border-radius:4px; cursor:pointer; font-family:'Share Tech Mono',monospace; font-size:.7rem; }
+.diag-close:hover { border-color:var(--text); color:var(--text); }
+.diag-autofix { background:var(--green); border:none; color:var(--bg);
+  padding:6px 16px; border-radius:4px; cursor:pointer; font-family:'Share Tech Mono',monospace;
+  font-size:.7rem; font-weight:bold; }
+.diag-autofix:hover { opacity:.85; }
+.diag-autofix:disabled { opacity:.4; cursor:not-allowed; }
   font-family:'Share Tech Mono',monospace; font-size:.62rem;
   border:1px solid var(--cyan); color:var(--cyan);
   padding:2px 8px; border-radius:2px; opacity:.6;
@@ -469,8 +503,8 @@ footer {
       <div class="card-tag">CPU</div>
       <div class="card-big"><span id="cpu-usage">--</span><span class="card-unit">%</span></div>
       <div class="card-details">
-        <div class="card-detail-row"><span class="cd-k">Temp</span><span class="cd-v" id="cpu-temp">-- °C</span></div>
-        <div class="card-detail-row"><span class="cd-k">Voltage</span><span class="cd-v" id="cpu-volt">-- V</span></div>
+        <div class="card-detail-row"><span class="cd-k">Temp</span><span class="cd-v" id="cpu-temp">-- °C</span><button class="diag-btn" id="diag-cpu-temp" onclick="showDiag('cpu_temp')" title="Diagnostic info" style="display:none">⚠</button></div>
+        <div class="card-detail-row"><span class="cd-k">Voltage</span><span class="cd-v" id="cpu-volt">-- V</span><button class="diag-btn" id="diag-cpu-volt" onclick="showDiag('wmi')" title="Diagnostic info" style="display:none">⚠</button></div>
         <div class="card-detail-row"><span class="cd-k">Clock</span><span class="cd-v" id="cpu-freq">-- GHz</span></div>
         <div class="card-detail-row"><span class="cd-k">Cores / Threads</span><span class="cd-v" id="cpu-cores">--</span></div>
       </div>
@@ -482,7 +516,7 @@ footer {
       <div class="card-tag">GPU</div>
       <div class="card-big"><span id="gpu-usage">--</span><span class="card-unit">%</span></div>
       <div class="card-details">
-        <div class="card-detail-row"><span class="cd-k">Temp</span><span class="cd-v" id="gpu-temp">-- °C</span></div>
+        <div class="card-detail-row"><span class="cd-k">Temp</span><span class="cd-v" id="gpu-temp">-- °C</span><button class="diag-btn" id="diag-gpu-temp" onclick="showDiag('gpu')" title="Diagnostic info" style="display:none">⚠</button></div>
         <div class="card-detail-row"><span class="cd-k">VRAM Used</span><span class="cd-v" id="gpu-vram">-- MB</span></div>
         <div class="card-detail-row"><span class="cd-k">Name</span><span class="cd-v" id="gpu-name" style="font-size:.75rem">--</span></div>
       </div>
@@ -634,6 +668,44 @@ footer {
       <button class="btn btn-secondary" onclick="closeSettings()">CANCEL</button>
       <button class="btn btn-primary" onclick="saveThresholds()">SAVE THRESHOLDS</button>
     </div>
+  </div>
+</div>
+
+<!-- DIAGNOSTIC MODAL -->
+<div class="diag-modal" id="diag-modal">
+  <div class="diag-box">
+    <div class="diag-title">⚠ DIAGNOSTIC — <span id="diag-modal-key"></span></div>
+    <div class="diag-status" id="diag-modal-msg"></div>
+    <div class="diag-fix" id="diag-modal-fix" style="display:none"></div>
+    <div id="diag-modal-download" style="display:none; margin-bottom:12px; font-size:.75rem;">
+      <a id="diag-download-link" href="#" target="_blank" style="color:var(--cyan)">📥 Download required software</a>
+    </div>
+    <div class="diag-actions">
+      <button class="diag-close" onclick="closeDiag()">CLOSE</button>
+      <button class="diag-autofix" id="diag-autofix-btn" style="display:none" onclick="runAutofix()">⚡ AUTO-FIX</button>
+    </div>
+    <div id="diag-result" style="margin-top:12px; font-size:.75rem; color:var(--green); display:none;"></div>
+  </div>
+</div>
+
+<!-- UPDATE NOTIFICATION -->
+<div id="update-toast" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9998;
+  background:var(--bg2); border:1px solid var(--green); border-radius:8px; padding:16px 20px;
+  max-width:360px; box-shadow:0 0 30px rgba(0,255,136,.15);">
+  <div style="color:var(--green); font-size:.75rem; letter-spacing:2px; margin-bottom:8px;">⬡ UPDATE AVAILABLE</div>
+  <div id="update-version" style="font-size:.85rem; color:var(--white); margin-bottom:6px;"></div>
+  <div id="update-changes" style="font-size:.72rem; color:var(--dim); margin-bottom:12px; line-height:1.6;"></div>
+  <div style="display:flex; gap:8px;">
+    <button onclick="document.getElementById('update-toast').style.display='none'"
+      style="background:none; border:1px solid var(--border2); color:var(--dim); padding:5px 12px;
+      border-radius:3px; cursor:pointer; font-family:'Share Tech Mono',monospace; font-size:.65rem;">
+      IGNORE
+    </button>
+    <a id="update-link" href="https://github.com/kypin00-web/KAM-Sentinel/releases" target="_blank"
+      style="background:var(--green); color:var(--bg); padding:5px 12px; border-radius:3px;
+      text-decoration:none; font-family:'Share Tech Mono',monospace; font-size:.65rem; font-weight:bold;">
+      VIEW UPDATE
+    </a>
   </div>
 </div>
 
@@ -820,8 +892,7 @@ async function fetchStats() {
 
     // Warnings
     renderWarnings(d.warnings || []);
-
-    // Update overlay if visible
+    checkNAIndicators(cpu, gpu);
     updateOverlay(cpu, gpu, ram);
 
   } catch(e) {
@@ -921,6 +992,73 @@ DOM['settings-modal']?.addEventListener('click', function(e) {
   if(e.target === this) closeSettings();
 });
 
+// ── Diagnostics ───────────────────────────────────────────────────────────
+let _diagData = {};
+
+async function loadDiagnostics() {
+  try {
+    const r = await fetch('/api/diagnostics');
+    _diagData = await r.json();
+    updateDiagIndicators();
+  } catch(e) {}
+}
+
+function updateDiagIndicators() {
+  const show = (id, cond) => { const el=document.getElementById(id); if(el) el.style.display=cond?'inline-block':'none'; };
+  show('diag-cpu-temp', _diagData.cpu_temp && _diagData.cpu_temp.status !== 'ok');
+  show('diag-cpu-volt', _diagData.wmi     && _diagData.wmi.status     !== 'ok');
+  show('diag-gpu-temp', _diagData.gpu     && _diagData.gpu.status     !== 'ok');
+}
+
+function showDiag(key) {
+  const d = _diagData[key]; if(!d) return;
+  const labels = { cpu_temp:'CPU TEMP', gpu:'GPU', wmi:'WMI / VOLTAGE' };
+  document.getElementById('diag-modal-key').textContent = labels[key] || key.toUpperCase();
+  document.getElementById('diag-modal-msg').textContent = d.message || '';
+  const fixEl = document.getElementById('diag-modal-fix');
+  if(d.fix) { fixEl.textContent = d.fix; fixEl.style.display='block'; } else { fixEl.style.display='none'; }
+  const dlEl = document.getElementById('diag-modal-download');
+  if(d.download) { document.getElementById('diag-download-link').href=d.download; dlEl.style.display='block'; }
+  else { dlEl.style.display='none'; }
+  const fixBtn = document.getElementById('diag-autofix-btn');
+  fixBtn.style.display = d.auto_fix ? 'inline-block' : 'none';
+  fixBtn.dataset.fix = d.fix || '';
+  fixBtn.textContent = '⚡ AUTO-FIX';
+  fixBtn.disabled = false;
+  document.getElementById('diag-result').style.display='none';
+  document.getElementById('diag-modal').classList.add('open');
+}
+
+function closeDiag() { document.getElementById('diag-modal').classList.remove('open'); }
+
+async function runAutofix() {
+  const btn = document.getElementById('diag-autofix-btn');
+  const resultEl = document.getElementById('diag-result');
+  btn.disabled = true; btn.textContent = '⏳ FIXING...';
+  try {
+    const r = await fetch('/api/autofix', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({fix: btn.dataset.fix})
+    });
+    const data = await r.json();
+    resultEl.textContent = data.message || 'Done!';
+    resultEl.style.color = data.status==='ok' ? 'var(--green)' : 'var(--red)';
+    resultEl.style.display = 'block';
+    if(data.status==='ok') { btn.textContent='✓ DONE'; setTimeout(loadDiagnostics, 1500); }
+  } catch(e) {
+    resultEl.textContent = 'Fix failed — try manually in Command Prompt';
+    resultEl.style.color = 'var(--red)'; resultEl.style.display='block';
+  }
+  btn.disabled = false;
+}
+
+function checkNAIndicators(cpu, gpu) {
+  const show = (id, cond) => { const el=document.getElementById(id); if(el) el.style.display=cond?'inline-block':'none'; };
+  show('diag-cpu-temp', cpu.temp    === null || cpu.temp    === undefined);
+  show('diag-cpu-volt', cpu.voltage === null || cpu.voltage === undefined);
+  show('diag-gpu-temp', gpu.usage   === null || gpu.usage   === undefined);
+}
+
 // ── Goal 10: Update notification check ────────────────────────────────────
 async function checkForUpdate() {
   try {
@@ -936,16 +1074,19 @@ async function checkForUpdate() {
   } catch(e) { /* No update server configured yet */ }
 }
 
-function showUpdateBanner(newVersion, changelog) {
-  const banner = document.createElement('div');
-  banner.className = 'warn-item warning';
-  banner.style.marginBottom = '14px';
-  banner.innerHTML = `
-    <span class="warn-icon">🔔</span>
-    <span>KAM Sentinel <strong>${newVersion}</strong> is available!
-    ${changelog ? `<em style="opacity:.7;font-size:.8rem"> — ${changelog}</em>` : ''}</span>
-    <button class="warn-clear-btn" onclick="this.parentElement.remove()">✕</button>`;
-  document.querySelector('main').prepend(banner);
+function showUpdateBanner(newVersion, changes) {
+  const toast = document.getElementById('update-toast');
+  const vEl   = document.getElementById('update-version');
+  const cEl   = document.getElementById('update-changes');
+  if(!toast) return;
+  vEl.textContent = `v${newVersion} is available`;
+  if(changes && changes.length) {
+    cEl.innerHTML = changes.slice(0,5).map(c => `• ${c}`).join('<br>');
+    cEl.style.display = 'block';
+  } else {
+    cEl.style.display = 'none';
+  }
+  toast.style.display = 'block';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
@@ -1038,6 +1179,12 @@ function updateOverlay(cpu, gpu, ram) {
   });
 })();
 
+// ── Clean shutdown when browser tab/window closes ────────────────────────
+window.addEventListener('beforeunload', () => {
+    // Use sendBeacon for reliable delivery even during page unload
+    navigator.sendBeacon('/api/shutdown');
+});
+
 async function init() {
   cacheDom();
   initCharts();
@@ -1053,6 +1200,8 @@ async function init() {
   const sel = document.getElementById('refresh-select');
   if(sel) sel.value = savedMs;
   _refreshInterval = setInterval(fetchStats, savedMs);
+  // Load diagnostics for N/A indicators
+  await loadDiagnostics();
   // Check for updates once on load (Goal 10)
   setTimeout(checkForUpdate, 3000);
 }

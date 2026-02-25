@@ -1,5 +1,16 @@
 {
-  "version": "1.2",
-  "build_date": "2026-02-24",
-  "UPDATE_CHECK_URL": ""
+  "version": "1.3.0",
+  "build": 1,
+  "date": "2026-02-25",
+  "channel": "stable",
+  "changes": [
+    "Async GPU worker thread - nvidia-smi never blocks polling",
+    "CREATE_NO_WINDOW - no CMD flash in .exe builds",
+    "Clean shutdown on browser tab close",
+    "Self-healing diagnostics - N/A indicators with one-click auto-fix",
+    "Security hardening - rate limiting, input validation, auto-fix whitelist",
+    "Automated security scan in test suite (Section 9)",
+    "deploy.bat - full automated release pipeline",
+    "Update notification toast with changelog"
+  ]
 }

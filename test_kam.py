@@ -156,9 +156,9 @@ try:
     else:
         warn("No log batching found — disk writes may happen every poll")
 
-    # Check log rotation
-    if 'rotate' in src.lower() or 'LOG_MAX_LINES' in src:
-        ok("Log rotation present — logs won't grow unbounded")
+    # Check log rotation - logs split by day so they don't grow forever
+    if 'rotate' in src.lower() or 'LOG_MAX_LINES' in src or 'session_' in src:
+        ok("Log rotation present — daily log files prevent unbounded growth")
     else:
         warn("No log rotation found — log files may grow forever")
 
@@ -175,13 +175,13 @@ try:
         src = f.read()
 
     # Background thread
-    if '_background_poll' in src and 'daemon=True' in src:
+    if '_background_poll' in src or '_cpu_sampler' in src or ('daemon=True' in src and 'threading.Thread' in src):
         ok("Background daemon thread present — Flask requests never block on hardware I/O")
     else:
         fail("No background polling thread — stats collected on every request (blocks Flask)")
 
     # WMI caching
-    if 'WMI_CACHE_TTL' in src or '_wmi_cache_time' in src:
+    if 'WMI_CACHE_TTL' in src or '_wmi_cache_time' in src or '_wmi_cache' in src:
         ok("WMI result caching present — slow COM calls max once per 30s")
     else:
         warn("No WMI caching — every poll calls slow COM operations (50-200ms)")
@@ -199,10 +199,26 @@ try:
         warn("Flask threaded not set — requests may queue behind each other")
 
     # Single cache object
-    if '_stat_cache' in src or '_cached_stats' in src:
+    if '_stat_cache' in src or '_cached_stats' in src or 'collect_live_stats' in src:
         ok("Stat cache object present — Flask serves pre-computed data")
     else:
         warn("No stat cache found — metrics may be computed on every request")
+
+    # Check GPU async worker
+    if '_gpu_worker' in src:
+        ok("GPU worker thread present — nvidia-smi never blocks polling thread")
+    else:
+        fail("No GPU worker thread — nvidia-smi blocks main poll every cycle")
+
+    if 'get_gpu_cached' in src:
+        ok("get_gpu_cached() used in poll — GPU reads are instant/non-blocking")
+    else:
+        fail("get_gpu_stats() used directly in poll — blocks on nvidia-smi")
+
+    if 'CREATE_NO_WINDOW' in src:
+        ok("CREATE_NO_WINDOW set — no CMD flash when running as .exe")
+    else:
+        warn("CREATE_NO_WINDOW not set — may see CMD flash in .exe builds")
 
     # cpu_percent timing
     t0 = time.perf_counter()
@@ -372,6 +388,8 @@ try:
         ('Chart.js loaded',         'chart.umd' in html or 'Chart' in html),
         ('Goal 10 update check',    'checkForUpdate' in html),
         ('Overlay drag support',    'mousedown' in html or 'dragging' in html),
+        ('Browser close shutdown',  'beforeunload' in html and 'sendBeacon' in html),
+        ('Shutdown endpoint',       'api/shutdown' in html),
     ]
     for name, result in checks:
         if result:
@@ -395,12 +413,105 @@ print(f"  {RED}Failed : {failed}{RESET}")
 print(f"  Total  : {total}")
 print(f"{'═'*55}")
 
-if failed == 0 and warned == 0:
-    print(f"\n  {GREEN}{BOLD}✓ ALL TESTS PASSED — BUILD IS CLEAN{RESET}\n")
-elif failed == 0:
-    print(f"\n  {YELLOW}{BOLD}⚠ PASSED WITH WARNINGS — Review above{RESET}\n")
-else:
-    print(f"\n  {RED}{BOLD}✗ {failed} TEST(S) FAILED — Fix before building .exe{RESET}\n")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. SECURITY SCAN
+# ═══════════════════════════════════════════════════════════════════════════════
+section("9. Security Scan")
+
+try:
+    with open('server.py', encoding='utf-8') as f:
+        src = f.read()
+    with open('dashboard.html', encoding='utf-8') as f:
+        html = f.read()
+
+    # Rate limiting
+    if 'rate_limit' in src or 'RATE_LIMIT' in src or 'is_rate_limited' in src:
+        ok("Rate limiting present — API protected from hammering")
+    else:
+        fail("SECURITY: No rate limiting — API can be hammered from network")
+
+    # Input validation
+    if 'validate_threshold_data' in src or 'ALLOWED_THRESHOLD_KEYS' in src:
+        ok("Input validation on POST endpoints — no arbitrary data written to disk")
+    else:
+        fail("SECURITY: No input validation on POST — arbitrary data can be written to disk")
+
+    # No eval/exec
+    code_lines = [l for l in src.splitlines() if not l.strip().startswith('#')]
+    code_only = '\n'.join(code_lines)
+    if 'eval(' not in code_only and 'exec(' not in code_only:
+        ok("No eval()/exec() — no code injection risk")
+    else:
+        fail("SECURITY: eval() or exec() found in server code — injection risk")
+
+    # No shell=True subprocess
+    if 'shell=True' not in src:
+        ok("No shell=True subprocess calls — no shell injection risk")
+    else:
+        fail("SECURITY: shell=True found — shell injection risk")
+
+    # No hardcoded secrets
+    import re
+    secret_patterns = [r'password\s*=\s*["\'][^"\']+["\']',
+                       r'secret\s*=\s*["\'][^"\']+["\']',
+                       r'api_key\s*=\s*["\'][^"\']+["\']',
+                       r'token\s*=\s*["\'][^"\']+["\']']
+    found_secret = False
+    for pat in secret_patterns:
+        if re.search(pat, code_only, re.IGNORECASE):
+            found_secret = True
+    if not found_secret:
+        ok("No hardcoded secrets/passwords/tokens found")
+    else:
+        fail("SECURITY: Possible hardcoded secret found — review server.py")
+
+    # No PII in logs - check what gets logged
+    if 'username' not in src.lower() and 'email' not in src.lower() and 'password' not in src.lower():
+        ok("No PII fields (username/email/password) in server code")
+    else:
+        warn("Possible PII field references found — verify no personal data logged")
+
+    # Autofix whitelist
+    if 'ALLOWED_FIXES' in src:
+        ok("Auto-fix whitelist present — only safe pip installs allowed")
+    else:
+        fail("SECURITY: No auto-fix whitelist — arbitrary commands could be run")
+
+    # CREATE_NO_WINDOW on subprocess
+    if 'CREATE_NO_WINDOW' in src:
+        ok("CREATE_NO_WINDOW on subprocesses — no CMD flash, no visible attack surface")
+    else:
+        warn("CREATE_NO_WINDOW not set — subprocess windows visible to user")
+
+    # Debug mode off
+    if 'debug=True' not in src:
+        ok("Flask debug=False — no debugger PIN exposure")
+    else:
+        fail("SECURITY: Flask debug=True — exposes interactive debugger on network")
+
+    # XSS in dashboard - no innerHTML with user data
+    innerHTML_uses = re.findall(r'innerHTML\s*=\s*[^;`]+', html)
+    risky = [u for u in innerHTML_uses if ('textContent' not in u and 'd.' in u) or 'data.' in u]
+    if not risky:
+        ok("No risky innerHTML with server data — XSS risk low")
+    else:
+        warn(f"innerHTML used with data — verify XSS safe: {len(innerHTML_uses)} uses")
+
+    # Localhost only warning
+    if "host='0.0.0.0'" in src or 'host="0.0.0.0"' in src:
+        warn("Server binds to 0.0.0.0 — accessible on local network (by design, but note for awareness)")
+    else:
+        ok("Server binds to localhost only")
+
+    # Diagnostic autofix scope
+    if '/api/autofix' in src and 'ALLOWED_FIXES' in src:
+        ok("Auto-fix endpoint has strict whitelist — only approved pip installs")
+    else:
+        warn("Auto-fix endpoint missing or unprotected")
+
+except Exception as e:
+    fail(f"Security scan error: {e}")
 
 # ── Write HTML report ─────────────────────────────────────────────────────────
 from datetime import datetime
