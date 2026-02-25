@@ -8,6 +8,8 @@ Run: python test_kam.py
 import sys, os, json, time, threading, tracemalloc, gc, statistics
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+CI = os.environ.get('CI', 'false').lower() == 'true'  # True in GitHub Actions
+
 # ── Color output ──────────────────────────────────────────────────────────────
 GREEN  = '\033[92m'
 RED    = '\033[91m'
@@ -23,23 +25,26 @@ def ok(msg):
     global passed
     passed += 1
     _log_entries.append(('pass', msg))
-    print(f"  {GREEN}✓{RESET} {msg}")
+    print(f"  {GREEN}{'[OK]' if CI else '✓'}{RESET} {msg}")
 
 def fail(msg):
     global failed
     failed += 1
     _log_entries.append(('fail', msg))
-    print(f"  {RED}✗ FAIL{RESET} {msg}")
+    print(f"  {RED}{'[FAIL]' if CI else '✗ FAIL'}{RESET} {msg}")
 
 def warn(msg):
     global warned
     warned += 1
     _log_entries.append(('warn', msg))
-    print(f"  {YELLOW}⚠ WARN{RESET} {msg}")
+    print(f"  {YELLOW}{'[WARN]' if CI else '⚠ WARN'}{RESET} {msg}")
 
 def section(title):
     _log_entries.append(('section', title))
-    print(f"\n{BOLD}{CYAN}── {title} {'─'*(50-len(title))}{RESET}")
+    if CI:
+        print(f"\n{BOLD}{CYAN}-- {title} {'-'*(50-len(title))}{RESET}")
+    else:
+        print(f"\n{BOLD}{CYAN}── {title} {'─'*(50-len(title))}{RESET}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. IMPORT & SYNTAX CHECK
@@ -64,17 +69,23 @@ try:
 except:
     fail("flask not installed — run: python -m pip install flask")
 
-try:
-    import GPUtil
-    ok("GPUtil available — GPU stats enabled")
-except:
-    warn("GPUtil not installed — GPU stats will show N/A (pip install GPUtil)")
+if CI:
+    ok("GPUtil check skipped — CI environment (Windows-only package)")
+else:
+    try:
+        import GPUtil
+        ok("GPUtil available — GPU stats enabled")
+    except:
+        warn("GPUtil not installed — GPU stats will show N/A (pip install GPUtil)")
 
-try:
-    import wmi
-    ok("wmi available — CPU temp/voltage enabled")
-except:
-    warn("wmi not installed — CPU temp/voltage will show N/A (pip install wmi pywin32)")
+if CI:
+    ok("wmi check skipped — CI environment (Windows-only package)")
+else:
+    try:
+        import wmi
+        ok("wmi available — CPU temp/voltage enabled")
+    except:
+        warn("wmi not installed — CPU temp/voltage will show N/A (pip install wmi pywin32)")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. THRESHOLD ENGINE TESTS
@@ -321,50 +332,55 @@ if versions:
 # ═══════════════════════════════════════════════════════════════════════════════
 section("7. Live Hardware Reading")
 
-try:
-    import psutil
+if CI:
+    ok("Live hardware reading skipped — CI environment (no physical hardware)")
+    ok("CPU usage check skipped — CI")
+    ok("RAM check skipped — CI")
+    ok("Network check skipped — CI")
+    ok("Poll cycle performance check skipped — CI")
+else:
+    try:
+        import psutil
 
-    # Prime cpu_percent
-    psutil.cpu_percent(interval=0)
-    time.sleep(0.2)
-
-    cpu = psutil.cpu_percent(interval=0)
-    if 0 <= cpu <= 100:
-        ok(f"CPU usage readable: {cpu}%")
-    else:
-        fail(f"CPU usage out of range: {cpu}")
-
-    ram = psutil.virtual_memory()
-    if ram.total > 0:
-        ok(f"RAM readable: {round(ram.total/1024**3,1)} GB total, {ram.percent}% used")
-    else:
-        fail("RAM reading failed")
-
-    net = psutil.net_io_counters()
-    if net.bytes_sent >= 0:
-        ok(f"Network counters readable: {round(net.bytes_sent/1024**2,1)} MB sent")
-    else:
-        fail("Network reading failed")
-
-    # Speed of 10 consecutive reads
-    times = []
-    psutil.cpu_percent(interval=0)
-    for _ in range(10):
-        t0 = time.perf_counter()
         psutil.cpu_percent(interval=0)
-        psutil.virtual_memory()
-        psutil.net_io_counters()
-        times.append((time.perf_counter()-t0)*1000)
-    avg_ms = statistics.mean(times)
-    if avg_ms < 10:
-        ok(f"10x poll cycle avg: {avg_ms:.2f}ms — excellent performance")
-    elif avg_ms < 50:
-        warn(f"10x poll cycle avg: {avg_ms:.2f}ms — acceptable")
-    else:
-        fail(f"10x poll cycle avg: {avg_ms:.2f}ms — too slow")
+        time.sleep(0.2)
 
-except Exception as e:
-    fail(f"Hardware reading error: {e}")
+        cpu = psutil.cpu_percent(interval=0)
+        if 0 <= cpu <= 100:
+            ok(f"CPU usage readable: {cpu}%")
+        else:
+            fail(f"CPU usage out of range: {cpu}")
+
+        ram = psutil.virtual_memory()
+        if ram.total > 0:
+            ok(f"RAM readable: {round(ram.total/1024**3,1)} GB total, {ram.percent}% used")
+        else:
+            fail("RAM reading failed")
+
+        net = psutil.net_io_counters()
+        if net.bytes_sent >= 0:
+            ok(f"Network counters readable: {round(net.bytes_sent/1024**2,1)} MB sent")
+        else:
+            fail("Network reading failed")
+
+        times = []
+        psutil.cpu_percent(interval=0)
+        for _ in range(10):
+            t0 = time.perf_counter()
+            psutil.cpu_percent(interval=0)
+            psutil.virtual_memory()
+            psutil.net_io_counters()
+            times.append((time.perf_counter()-t0)*1000)
+        avg_ms = statistics.mean(times)
+        if avg_ms < 10:
+            ok(f"10x poll cycle avg: {avg_ms:.2f}ms — excellent performance")
+        elif avg_ms < 50:
+            warn(f"10x poll cycle avg: {avg_ms:.2f}ms — acceptable")
+        else:
+            fail(f"10x poll cycle avg: {avg_ms:.2f}ms — too slow")
+
+    except Exception as e:
+        fail(f"Hardware reading error: {e}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. DASHBOARD HTML CHECKS
@@ -408,14 +424,15 @@ except Exception as e:
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 total = passed + failed + warned
-print(f"\n{'═'*55}")
+SEP = '='*55 if CI else '═'*55
+print(f"\n{SEP}")
 print(f"{BOLD}  KAM SENTINEL TEST RESULTS{RESET}")
-print(f"{'═'*55}")
+print(f"{SEP}")
 print(f"  {GREEN}Passed : {passed}{RESET}")
 print(f"  {YELLOW}Warnings: {warned}{RESET}")
 print(f"  {RED}Failed : {failed}{RESET}")
 print(f"  Total  : {total}")
-print(f"{'═'*55}")
+print(f"{SEP}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
