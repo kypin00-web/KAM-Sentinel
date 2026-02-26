@@ -492,6 +492,27 @@ footer {
   .sysinfo-grid { grid-template-columns:1fr; }
   .charts-row { grid-template-columns:1fr; }
 }
+/* ── WHAT'S NEW WALKTHROUGH ───────────────────────────────────────────────── */
+#wn-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
+#wn-overlay.open { display:flex; }
+#wn-box { background:linear-gradient(135deg,var(--bg2),var(--bg3)); border:1px solid var(--border3); border-radius:6px; width:520px; max-width:94vw; padding:32px; box-shadow:0 0 80px rgba(0,170,255,.12); position:relative; }
+#wn-badge { font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:4px; color:var(--cyan); margin-bottom:10px; }
+#wn-title { font-family:'Rajdhani',sans-serif; font-size:1.6rem; font-weight:700; color:var(--white); margin-bottom:6px; }
+#wn-sub { font-size:.78rem; color:var(--dim); margin-bottom:24px; }
+#wn-steps { list-style:none; padding:0; margin:0 0 28px; }
+#wn-steps li { display:none; font-size:.85rem; color:var(--text); line-height:1.7; }
+#wn-steps li.active { display:block; }
+#wn-steps .wn-icon { font-size:1.4rem; margin-bottom:8px; display:block; }
+#wn-steps .wn-step-title { font-weight:600; color:var(--white); font-size:.95rem; }
+#wn-dots { display:flex; gap:7px; margin-bottom:24px; }
+.wn-dot { width:8px; height:8px; border-radius:50%; background:var(--border3); transition:background .2s; cursor:pointer; }
+.wn-dot.active { background:var(--cyan); }
+#wn-actions { display:flex; gap:10px; align-items:center; }
+#wn-next { background:var(--cyan); border:none; color:var(--bg); font-family:'Share Tech Mono',monospace; font-size:.72rem; letter-spacing:2px; padding:9px 20px; border-radius:3px; cursor:pointer; }
+#wn-next:hover { filter:brightness(1.15); }
+#wn-skip { background:none; border:none; color:var(--dim); font-size:.75rem; cursor:pointer; }
+#wn-skip:hover { color:var(--white); }
+#wn-progress { font-family:'Share Tech Mono',monospace; font-size:.65rem; color:var(--dim); margin-left:auto; }
 </style>
 </head>
 <body>
@@ -1397,6 +1418,104 @@ async function init() {
 }
 
 window.addEventListener('load', init);
+
+// ── What's New Walkthrough ────────────────────────────────────────────────
+(function() {
+  const WN_VER_KEY = 'kam_whats_new_seen';
+  const WN_VER     = '1.4.0';
+  let wnStep = 0;
+  let wnSteps, wnDots, wnNext, wnProgress;
+
+  function wnBuild() {
+    wnSteps    = Array.from(document.querySelectorAll('#wn-steps li'));
+    wnDots     = document.getElementById('wn-dots');
+    wnNext     = document.getElementById('wn-next');
+    wnProgress = document.getElementById('wn-progress');
+    // Build dots
+    wnSteps.forEach((_, i) => {
+      const d = document.createElement('span');
+      d.className = 'wn-dot' + (i === 0 ? ' active' : '');
+      d.onclick = () => wnGoTo(i);
+      wnDots.appendChild(d);
+    });
+    wnUpdate();
+  }
+
+  function wnUpdate() {
+    const total = wnSteps.length;
+    wnSteps.forEach((el, i) => el.classList.toggle('active', i === wnStep));
+    Array.from(wnDots.children).forEach((d, i) => d.classList.toggle('active', i === wnStep));
+    wnProgress.textContent = (wnStep + 1) + ' / ' + total;
+    wnNext.textContent = wnStep < total - 1 ? 'NEXT' : 'GOT IT';
+  }
+
+  function wnGoTo(i) { wnStep = i; wnUpdate(); }
+
+  window.wnNext = function() {
+    if(wnStep < wnSteps.length - 1) { wnStep++; wnUpdate(); }
+    else wnDismiss();
+  };
+
+  window.wnDismiss = function() {
+    document.getElementById('wn-overlay').classList.remove('open');
+    localStorage.setItem(WN_VER_KEY, WN_VER);
+  };
+
+  // Show if this version hasn't been seen yet
+  document.addEventListener('DOMContentLoaded', () => {
+    if(localStorage.getItem(WN_VER_KEY) !== WN_VER) {
+      wnBuild();
+      // Delay slightly so the dashboard renders first
+      setTimeout(() => document.getElementById('wn-overlay').classList.add('open'), 1200);
+    }
+  });
+})();
 </script>
+<!-- ── WHAT'S NEW WALKTHROUGH ─────────────────────────────────────────── -->
+<div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
+  <div id="wn-box">
+    <div id="wn-badge">WHAT'S NEW</div>
+    <div id="wn-title">KAM Sentinel v1.4.0</div>
+    <div id="wn-sub">Phase 1 is complete. Here's what changed.</div>
+    <ul id="wn-steps">
+      <li class="active">
+        <span class="wn-icon">&#x1F527;</span>
+        <span class="wn-step-title">404 Fixed &mdash; For Good</span><br>
+        Beta users hit a blank screen on launch. A PyInstaller path bug sent the server looking for dashboard.html in a temp folder that got deleted on exit. That's fixed. The dashboard now loads from the correct bundle directory every time.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F310;</span>
+        <span class="wn-step-title">Cross-Platform: Windows, Mac, Linux</span><br>
+        KAM Sentinel now runs on all three platforms. Windows uses WMI for temps and voltage. macOS reads from system_profiler and ioreg. Linux uses psutil sensors. All platforms share the same dashboard.
+      </li>
+      <li>
+        <span class="wn-icon">&#x26A1;</span>
+        <span class="wn-step-title">Leaner &mdash; Lower Overhead</span><br>
+        The server was rewritten from scratch. Every hardware read now happens in a background thread. When you refresh stats, the server reads from memory &mdash; zero I/O on the Flask thread. Monitoring your machine no longer competes with it.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F4CA;</span>
+        <span class="wn-step-title">Anonymous Install Telemetry</span><br>
+        We now know how many installs are active and what hardware classes are represented &mdash; without storing any personal info. No hostname, IP, or username is ever collected. Just a random UUID and a hardware bucket (e.g. "AMD Ryzen 7", "NVIDIA RTX 30xx").
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F6A8;</span>
+        <span class="wn-step-title">Proactive Error Tracking</span><br>
+        Errors are logged to <code>logs/errors.jsonl</code> and visible at <code>/api/errors</code>. The goal: know about issues before users hit the feedback loop, not after.
+      </li>
+      <li>
+        <span class="wn-icon">&#x2705;</span>
+        <span class="wn-step-title">All Phase 1 Bugs Resolved</span><br>
+        Thread safety, rate limit memory growth, network spike on first poll, log flush on tab close, feedback message injection &mdash; all fixed. Test suite: 0 failures.
+      </li>
+    </ul>
+    <div id="wn-dots"></div>
+    <div id="wn-actions">
+      <button id="wn-next" onclick="wnNext()">NEXT</button>
+      <button id="wn-skip" onclick="wnDismiss()">Skip</button>
+      <span id="wn-progress"></span>
+    </div>
+  </div>
+</div>
 </body>
 </html>
