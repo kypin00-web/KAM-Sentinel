@@ -7,6 +7,10 @@ Run: python test_kam.py
 
 import sys, os, json, time, threading, tracemalloc, gc, statistics
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from importlib.metadata import version as _pkg_version
+except ImportError:
+    _pkg_version = None
 
 CI = os.environ.get('CI', 'false').lower() == 'true'  # True in GitHub Actions
 
@@ -65,8 +69,12 @@ except:
 
 try:
     import flask
-    ok(f"flask available (v{flask.__version__})")
-except:
+    try:
+        flask_ver = _pkg_version("flask") if _pkg_version else getattr(flask, "__version__", "?")
+    except Exception:
+        flask_ver = getattr(flask, "__version__", "?")
+    ok(f"flask available (v{flask_ver})")
+except Exception:
     fail("flask not installed -- run: python -m pip install flask")
 
 if CI:
