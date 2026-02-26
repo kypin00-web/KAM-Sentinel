@@ -244,6 +244,17 @@ try:
     else:
         fail("_fps_cache missing -- FPS endpoint has no backing cache")
 
+    # Module 3 — Fan Control
+    if 'FAN_CURVES' in src:
+        ok("FAN_CURVES constant present -- fan preset data available")
+    else:
+        fail("FAN_CURVES missing -- Module 3 fan control not implemented")
+
+    if '_read_fan_rpms' in src:
+        ok("_read_fan_rpms() present -- LHM WMI fan RPM reader available")
+    else:
+        fail("_read_fan_rpms missing -- fan RPM reading not implemented")
+
     if 'CREATE_NO_WINDOW' in src:
         ok("CREATE_NO_WINDOW set -- no CMD flash when running as .exe")
     else:
@@ -428,6 +439,9 @@ try:
         ('Feedback endpoint',       'api/feedback' in html),
         ('spanGaps chart fix',      'spanGaps' in html),
         ('Logo K in KAM',           'AM</span>' in html or '>AM<' in html),
+        ('Forge tab present',        'tab-forge' in html),
+        ('Fan chart canvas present', 'chart-fan-curve' in html),
+        ('Preset buttons present',   'preset-SILENT' in html),
     ]
     for name, result in checks:
         if result:
@@ -627,6 +641,39 @@ try:
                 fail(f"/api/fps missing key: '{key}'")
     else:
         fail(f"GET /api/fps -> {resp.status_code} (expected 200)")
+
+    # /api/forge/fan_curves returns 200 with required keys + all 4 presets
+    resp = client.get('/api/forge/fan_curves')
+    if resp.status_code == 200:
+        ok("GET /api/forge/fan_curves -> 200")
+        fan_data = resp.get_json()
+        for key in ('curves', 'active', 'fan_rpms', 'rpm_available'):
+            if key in fan_data:
+                ok(f"/api/forge/fan_curves has key: '{key}'")
+            else:
+                fail(f"/api/forge/fan_curves missing key: '{key}'")
+        curves = fan_data.get('curves', {})
+        for preset in ('SILENT', 'BALANCED', 'PERFORMANCE', 'FULL_SEND'):
+            if preset in curves:
+                ok(f"FAN_CURVES has preset: {preset}")
+            else:
+                fail(f"FAN_CURVES missing preset: {preset}")
+        # POST select preset
+        resp2 = client.post(
+            '/api/forge/fan_curves/select',
+            json={'preset': 'SILENT'},
+            environ_base={'REMOTE_ADDR': '127.0.0.1'}
+        )
+        if resp2.status_code == 200:
+            r2 = resp2.get_json()
+            if r2 and r2.get('status') == 'ok' and r2.get('active') == 'SILENT':
+                ok("POST /api/forge/fan_curves/select -> ok, active=SILENT")
+            else:
+                fail(f"POST /api/forge/fan_curves/select unexpected body: {r2}")
+        else:
+            fail(f"POST /api/forge/fan_curves/select returned {resp2.status_code}")
+    else:
+        fail(f"GET /api/forge/fan_curves -> {resp.status_code} (expected 200)")
 
 except Exception as e:
     import traceback

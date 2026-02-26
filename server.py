@@ -44,6 +44,13 @@ def _guard():
 ALLOWED_THRESHOLD_KEYS = {'cpu','gpu','ram','voltage','network'}
 ALLOWED_FIXES = {'pip install GPUtil':['GPUtil'], 'pip install wmi pywin32':['wmi','pywin32']}
 
+FAN_CURVES = {
+    'SILENT':      [(30,0),(40,10),(50,20),(60,30),(70,45),(80,60),(90,80)],
+    'BALANCED':    [(30,10),(40,20),(50,35),(60,50),(70,65),(80,80),(90,100)],
+    'PERFORMANCE': [(30,20),(40,35),(50,50),(60,65),(70,80),(80,90),(90,100)],
+    'FULL_SEND':   [(30,50),(40,60),(50,70),(60,80),(70,90),(80,100),(90,100)],
+}
+
 def _validate(d, depth=0):
     if depth > 3:               return False, 'too nested'
     if isinstance(d, dict):
@@ -84,9 +91,36 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.0'
+VER               = '1.5.1'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
+
+_FAN_CURVE_FILE = os.path.join(PROF_DIR, 'fan_curve.json')
+
+def _load_active_preset():
+    if os.path.exists(_FAN_CURVE_FILE):
+        try:
+            with open(_FAN_CURVE_FILE, encoding='utf-8') as f:
+                return json.load(f).get('active', 'BALANCED')
+        except: pass
+    return 'BALANCED'
+
+def _read_fan_rpms():
+    """Read fan RPMs from LibreHardwareMonitor WMI namespace. Windows-only."""
+    if sys.platform != 'win32':
+        return []
+    try:
+        import wmi as _w
+        lhm = _w.WMI(namespace='root/LibreHardwareMonitor')
+        fans = []
+        for sensor in lhm.Sensor():
+            if sensor.SensorType == 'Fan':
+                fans.append({'name': sensor.Name, 'rpm': round(float(sensor.Value))})
+        return fans
+    except:
+        return []
+
+_active_fan_preset = _load_active_preset()
 
 # ── Locks ─────────────────────────────────────────────────────────────────────
 _state_lock = threading.Lock()
@@ -802,6 +836,27 @@ def api_autofix():
 @app.route('/api/fps')
 def api_fps():
     with _fps_lock: return jsonify(dict(_fps_cache))
+
+@app.route('/api/forge/fan_curves')
+def api_forge_fan_curves():
+    rpms = _read_fan_rpms()
+    return jsonify(curves=FAN_CURVES, active=_active_fan_preset,
+                   fan_rpms=rpms, rpm_available=bool(rpms))
+
+@app.route('/api/forge/fan_curves/select', methods=['POST'])
+def api_forge_fan_curves_select():
+    global _active_fan_preset
+    d = request.get_json(silent=True) or {}
+    preset = d.get('preset', '')
+    if preset not in FAN_CURVES:
+        return jsonify(error=f'Unknown preset. Valid: {list(FAN_CURVES)}'), 400
+    _active_fan_preset = preset
+    try:
+        with open(_FAN_CURVE_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'active': preset}, f)
+    except Exception as e:
+        _log_err('fan_curves_select', e)
+    return jsonify(status='ok', active=_active_fan_preset)
 
 
 if __name__ == '__main__':

@@ -509,6 +509,25 @@ footer {
 #wn-skip { background:none; border:none; color:var(--dim); font-size:.75rem; cursor:pointer; }
 #wn-skip:hover { color:var(--white); }
 #wn-progress { font-family:'Share Tech Mono',monospace; font-size:.65rem; color:var(--dim); margin-left:auto; }
+/* ── TAB BAR ──────────────────────────────────────────────────────────────── */
+#tab-bar { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--bg2); padding:0 24px; max-width:1600px; margin:0 auto; }
+.tab { background:none; border:none; border-bottom:2px solid transparent; color:var(--dim2); font-family:'Share Tech Mono',monospace; font-size:.65rem; letter-spacing:3px; padding:10px 18px; cursor:pointer; transition:color .2s, border-color .2s; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--cyan); border-bottom-color:var(--cyan); }
+/* ── FORGE PANEL ──────────────────────────────────────────────────────────── */
+.forge-grid { display:grid; grid-template-columns:minmax(320px,480px); gap:14px; }
+.forge-card { background:linear-gradient(135deg,var(--bg2),var(--bg3)); border:1px solid var(--border); border-radius:8px; padding:20px; position:relative; overflow:hidden; }
+.forge-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--c,var(--cyan)),transparent); }
+.forge-card-hdr { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
+.forge-card-title { font-family:'Share Tech Mono',monospace; font-size:.65rem; letter-spacing:3px; color:var(--cyan); }
+.preset-btns { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.preset-btn { background:var(--bg3); border:1px solid var(--border2); color:var(--dim2); font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:2px; padding:7px 14px; border-radius:3px; cursor:pointer; transition:all .2s; }
+.preset-btn:hover { border-color:var(--cyan); color:var(--text); }
+.preset-btn.active { background:rgba(0,229,255,.1); border-color:var(--cyan); color:var(--cyan); }
+.fan-rpm-list { font-size:.8rem; color:var(--dim2); margin-top:6px; line-height:1.8; }
+.fan-rpm-row { display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding:4px 0; }
+.fan-rpm-row .fan-k { color:var(--dim); }
+.fan-rpm-row .fan-v { color:var(--white); font-weight:600; }
 </style>
 </head>
 <body>
@@ -578,7 +597,12 @@ footer {
   </div>
 </header>
 
-<main>
+<nav id="tab-bar">
+  <button class="tab active" id="tab-sentinel" onclick="switchTab('sentinel')">&#x2B21; SENTINEL</button>
+  <button class="tab" id="tab-forge" style="display:none" onclick="switchTab('forge')">&#x2692; FORGE</button>
+</nav>
+
+<main id="sentinel-panel">
 
   <!-- WARNINGS PANEL -->
   <div id="warnings-panel" class="warnings-panel"></div>
@@ -709,7 +733,29 @@ footer {
 
 </main>
 
-<footer>KAM Sentinel v1.5.0 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
+<!-- FORGE PANEL -->
+<div id="forge-panel" style="display:none; padding:20px 24px; max-width:1600px; margin:0 auto;">
+  <div class="section-label">FAN CONTROL</div>
+  <div class="forge-grid">
+    <div class="forge-card" style="--c:var(--cyan)">
+      <div class="forge-card-hdr">
+        <div class="forge-card-title">FAN CURVES</div>
+        <div class="card-tag">PRESET SELECTOR</div>
+      </div>
+      <div class="preset-btns">
+        <button class="preset-btn" id="preset-SILENT"      onclick="selectFanPreset('SILENT')">SILENT</button>
+        <button class="preset-btn" id="preset-BALANCED"    onclick="selectFanPreset('BALANCED')">BALANCED</button>
+        <button class="preset-btn" id="preset-PERFORMANCE" onclick="selectFanPreset('PERFORMANCE')">PERFORMANCE</button>
+        <button class="preset-btn" id="preset-FULL_SEND"   onclick="selectFanPreset('FULL_SEND')">FULL SEND</button>
+      </div>
+      <canvas id="chart-fan-curve" height="160"></canvas>
+      <div class="forge-card-title" style="margin-top:16px;font-size:.6rem;">DETECTED FANS</div>
+      <div id="fan-rpm-list" class="fan-rpm-list">—</div>
+    </div>
+  </div>
+</div>
+
+<footer>KAM Sentinel v1.5.1 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
 
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal">
@@ -1432,6 +1478,17 @@ async function init() {
   if(sel) sel.value = savedMs;
   _refreshInterval = setInterval(fetchStats, savedMs);
   setInterval(fetchFps, 2000);
+  // Show Forge tab on Windows only
+  try {
+    const vr = await fetch('/api/version');
+    if(vr.ok) {
+      const vd = await vr.json();
+      if(vd.platform === 'win32') {
+        const ft = document.getElementById('tab-forge');
+        if(ft) ft.style.display = '';
+      }
+    }
+  } catch(_) {}
   // Load diagnostics for N/A indicators
   await loadDiagnostics();
   // Check for updates once on load (Goal 10)
@@ -1440,10 +1497,98 @@ async function init() {
 
 window.addEventListener('load', init);
 
+// ── FORGE — Fan Control ────────────────────────────────────────────────────
+let _forgeInited = false;
+let _fanChart = null;
+
+function switchTab(name) {
+  document.getElementById('sentinel-panel').style.display = name === 'sentinel' ? '' : 'none';
+  document.getElementById('forge-panel').style.display    = name === 'forge'    ? '' : 'none';
+  document.getElementById('tab-sentinel').classList.toggle('active', name === 'sentinel');
+  document.getElementById('tab-forge').classList.toggle('active', name === 'forge');
+  if(name === 'forge' && !_forgeInited) { _forgeInited = true; initFanChart(); loadForgeFanCurves(); }
+}
+
+function initFanChart() {
+  const ctx = document.getElementById('chart-fan-curve');
+  if(!ctx) return;
+  _fanChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Fan Speed %',
+        data: [],
+        borderColor: 'rgba(0,229,255,1)',
+        backgroundColor: 'rgba(0,229,255,.08)',
+        pointRadius: 4,
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      scales: {
+        x: { title: { display: true, text: 'CPU Temp (°C)', color: '#526a80', font: { size: 10 } }, ticks: { color: '#526a80' }, grid: { color: 'rgba(255,255,255,.04)' } },
+        y: { min: 0, max: 100, title: { display: true, text: 'Fan Speed (%)', color: '#526a80', font: { size: 10 } }, ticks: { color: '#526a80' }, grid: { color: 'rgba(255,255,255,.04)' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+async function loadForgeFanCurves() {
+  try {
+    const r = await fetch('/api/forge/fan_curves');
+    if(!r.ok) return;
+    const d = await r.json();
+    updateFanDisplay(d);
+  } catch(e) { console.error('Fan curves fetch error:', e); }
+}
+
+function updateFanDisplay(d) {
+  const preset = d.active || 'BALANCED';
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById('preset-' + preset);
+  if(activeBtn) activeBtn.classList.add('active');
+  if(_fanChart && d.curves && d.curves[preset]) {
+    const pts = d.curves[preset];
+    _fanChart.data.labels = pts.map(p => p[0]);
+    _fanChart.data.datasets[0].data = pts.map(p => p[1]);
+    _fanChart.update('none');
+  }
+  const list = document.getElementById('fan-rpm-list');
+  if(!list) return;
+  if(d.rpm_available && d.fan_rpms && d.fan_rpms.length > 0) {
+    list.innerHTML = d.fan_rpms.map(f =>
+      `<div class="fan-rpm-row"><span class="fan-k">${f.name}</span><span class="fan-v">${f.rpm} RPM</span></div>`
+    ).join('');
+  } else {
+    list.innerHTML = '<span style="color:var(--dim)">— RPM data unavailable (LibreHardwareMonitor required)</span>';
+  }
+}
+
+async function selectFanPreset(preset) {
+  try {
+    const r = await fetch('/api/forge/fan_curves/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset })
+    });
+    if(!r.ok) return;
+    const d = await r.json();
+    if(d.status === 'ok') {
+      localStorage.setItem('kam_fan_preset', d.active);
+      await loadForgeFanCurves();
+    }
+  } catch(e) { console.error('Fan preset select error:', e); }
+}
+
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.0';
+  const WN_VER     = '1.5.1';
   let wnStep = 0;
   let wnSteps, wnDots, wnNext, wnProgress;
 
@@ -1496,8 +1641,8 @@ window.addEventListener('load', init);
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
   <div id="wn-box">
     <div id="wn-badge">WHAT'S NEW</div>
-    <div id="wn-title">KAM Sentinel v1.5.0</div>
-    <div id="wn-sub">Phase 1 is complete. Here's what changed.</div>
+    <div id="wn-title">KAM Sentinel v1.5.1</div>
+    <div id="wn-sub">Module 3: Forge tab — Fan Control is live.</div>
     <ul id="wn-steps">
       <li class="active">
         <span class="wn-icon">&#x1F527;</span>

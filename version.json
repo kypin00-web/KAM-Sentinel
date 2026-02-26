@@ -1,9 +1,9 @@
 {
-  "version": "1.5.0",
-  "build": 10,
+  "version": "1.5.1",
+  "build": 11,
   "date": "2026-02-26",
   "channel": "stable",
-  "changelog": "v1.5.0: Module 4 — FPS Counter. Live FPS via RTSS shared memory on Windows (auto-off on Mac/Linux). GPU card shows FPS, 1% low, and frametime. Background thread, 60-frame rolling history. /api/fps endpoint. Includes Timglenn123 PR: cpu_freq guard, Flask version fix, configurable port, macOS/Linux startup scripts.",
+  "changelog": "v1.5.1: Module 3 — Forge Tab / Fan Control. Preset selector (Silent/Balanced/Performance/Full Send), fan curve Chart.js chart, live RPM display via LibreHardwareMonitor WMI. Forge tab shown on Windows only. Persists active preset to profiles/fan_curve.json.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
     "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
@@ -11,13 +11,11 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: FPS counter via RTSS shared memory (Windows) — GPU card shows live FPS",
-    "NEW: 1% low FPS and frametime_ms displayed next to FPS",
-    "NEW: /api/fps endpoint with 60-frame rolling history",
-    "NEW: FPS color-coded: green >=60, yellow >=30, red <30",
-    "NEW: Install RTSS prompt shown on Windows when RTSS not running",
-    "Graceful on Mac/Linux: shows -- quietly, no Install link",
-    "Merged: Timglenn123 PR — cpu_freq guard, Flask version fix, configurable port",
-    "Merged: macOS/Linux startup scripts (run.sh, setup.sh)"
+    "NEW: Forge tab — shown on Windows only, hidden on Mac/Linux",
+    "NEW: Fan curve presets: Silent, Balanced, Performance, Full Send",
+    "NEW: Chart.js line chart — CPU temp vs fan speed% for active preset",
+    "NEW: Live fan RPM display via LibreHardwareMonitor WMI (graceful N/A fallback)",
+    "NEW: Active preset persisted to profiles/fan_curve.json",
+    "NEW: /api/forge/fan_curves (GET) + /api/forge/fan_curves/select (POST)"
   ]
 }
