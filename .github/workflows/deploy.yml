@@ -1,21 +1,67 @@
-name: KAM Sentinel - Test & Build
+name: KAM Sentinel - Test, Build & Release
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  test-and-build:
+  # ─── Windows build ────────────────────────────────────────────────────────────
+  build-windows:
     runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flask psutil GPUtil wmi pywin32 pyinstaller
+
+    - name: Run test suite
+      env:
+        CI: "true"
+      run: python test_kam.py
+
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-report-windows
+        path: test_report.html
+
+    - name: Build Windows EXE
+      run: |
+        python -m PyInstaller --name "KAM_Sentinel_Windows" --onefile --noconsole `
+          --add-data "dashboard.html;." `
+          --add-data "thresholds.py;." `
+          --hidden-import flask `
+          --hidden-import psutil `
+          --hidden-import GPUtil `
+          --hidden-import wmi `
+          launch.py
+
+    - name: Upload Windows EXE artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: KAM_Sentinel_Windows-${{ github.sha }}
+        path: dist/KAM_Sentinel_Windows.exe
+        retention-days: 30
+
+  # ─── macOS build ──────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
@@ -25,45 +71,67 @@ jobs:
         pip install flask psutil GPUtil pyinstaller
 
     - name: Run test suite
+      env:
+        CI: "true"
       run: python test_kam.py
-      
+
     - name: Upload test report
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-report
+        name: test-report-macos
         path: test_report.html
 
-    - name: Build EXE
-      if: github.ref == 'refs/heads/main'
+    - name: Build macOS binary
       run: |
-        python -m PyInstaller --name "KAM_Sentinel" --onefile --noconsole `
-          --add-data "dashboard.html;." `
-          --add-data "thresholds.py;." `
-          --hidden-import flask `
-          --hidden-import psutil `
-          --hidden-import GPUtil `
+        python -m PyInstaller --name "KAM_Sentinel_Mac" --onefile --noconsole \
+          --add-data "dashboard.html:." \
+          --add-data "thresholds.py:." \
+          --hidden-import flask \
+          --hidden-import psutil \
+          --hidden-import GPUtil \
           launch.py
 
-    - name: Upload EXE artifact
+    - name: Upload macOS binary artifact
       uses: actions/upload-artifact@v4
-      if: github.ref == 'refs/heads/main'
       with:
-        name: KAM_Sentinel-${{ github.sha }}
-        path: dist/KAM_Sentinel.exe
+        name: KAM_Sentinel_Mac-${{ github.sha }}
+        path: dist/KAM_Sentinel_Mac
         retention-days: 30
+
+  # ─── GitHub Release (on version tags only) ────────────────────────────────────
+  release:
+    needs: [ build-windows, build-macos ]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: KAM_Sentinel_Windows-${{ github.sha }}
+        path: dist/
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: KAM_Sentinel_Mac-${{ github.sha }}
+        path: dist/
 
     - name: Get version
       id: version
-      run: |
-        $ver = python -c "import json; print(json.load(open('version.json'))['version'])"
-        echo "version=$ver" >> $env:GITHUB_OUTPUT
+      run: echo "version=$(python3 -c "import json; print(json.load(open('version.json'))['version'])")" >> $GITHUB_OUTPUT
 
-    - name: Create Release on version tag
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        files: dist/KAM_Sentinel.exe
+        name: "KAM Sentinel v${{ steps.version.outputs.version }}"
         body_path: CHANGELOG.md
+        files: |
+          dist/KAM_Sentinel_Windows.exe
+          dist/KAM_Sentinel_Mac
+          version.json
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

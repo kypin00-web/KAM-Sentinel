@@ -1,181 +1,141 @@
-# KAM Sentinel — Claude Code Project Memory
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Project Is
-KAM Sentinel is a **portable Windows PC performance monitoring dashboard** built for gaming and power users. It runs as a single `.exe` (no Python required on target machines), opens a local browser dashboard, and monitors CPU, GPU, RAM, temperature, voltage, and network in real time with smart hardware-aware warnings.
+KAM Sentinel is a **portable cross-platform PC performance monitoring dashboard** built for gaming and power users. It runs as a single `.exe`/binary (no Python required on target machines), opens a local browser dashboard, and monitors CPU, GPU, RAM, temperature, voltage, and network in real time with smart hardware-aware warnings.
 
-**Current build: Phase 1 — Sentinel Edition (v1.2)**
-
----
-
-## Project Goals (All 10)
-
-| # | Goal | Phase | Status |
-|---|------|-------|--------|
-| 1 | Live performance monitoring dashboard | 1 | ✅ Complete |
-| 2 | Intelligent OC/tuning suggestions | 2 | Planned |
-| 3 | Stress testing to failure | 3 | Planned |
-| 4 | Automated BIOS/system changes | 4 | Planned |
-| 5 | Stability testing post-change | 3 | Planned |
-| 6 | Baseline & session history logging | 1 | ✅ Complete |
-| 7 | Rollback & recovery (original profile backup) | 1 | ✅ Complete |
-| 8 | Thermal & power profiling | 2 | Planned |
-| 9 | Workload profiles (gaming, streaming, idle) | 5 | Planned |
-| 10 | Update notifications (banner only — download flow not yet built) | 1 | ⚠️ Partial |
-| 11 | In-game overlay (draggable, configurable, always-on-top) | 1 | ✅ Complete |
-| 12 | Customizable refresh rate (2s/5s/10s/30s/60s) | 1 | ✅ Complete |
-| 13 | Machine benchmarking — compare stats against other machines | 2 | 🔜 Next |
-| 14 | Idiot-proof onboarding — detect missing deps, explain why, let user decide | 2 | 🔜 Next |
+**Current build: Phase 1 — Sentinel Edition (v1.4.0)** — supports Windows, macOS, Linux
 
 ---
 
-## Edition Roadmap
-- **KAM Sentinel** — Phase 1: monitoring, warnings, baseline, backup
-- **KAM Forge** — Phases 2–3: suggestions, thermal profiling, stress testing
-- **KAM Apex** — Phases 4–5: automated BIOS changes, workload profiles, full suite
+## Development Commands
 
----
+```bat
+# First-time setup: install deps and start server
+setup.bat
 
-## File Structure
+# Run dev server directly (after setup)
+python server.py
 
+# Run the full test suite
+python test_kam.py
+
+# Build portable .exe (runs tests first, then PyInstaller)
+build_exe.bat
 ```
-dashboard/
-├── CLAUDE.md                  ← you are here
-├── server.py                  ← Flask backend, background polling thread, warning engine
-├── thresholds.py              ← hardware-aware threshold defaults, 15+ CPU/GPU models
-├── dashboard.html             ← single-file frontend, dark UI, charts, warnings, overlay, settings modal
-├── test_kam.py                ← automated test suite (bugs, leaks, performance, architecture)
-├── launch.py                  ← PyInstaller entry point, auto-opens browser
-├── build_exe.bat              ← builds KAM_Sentinel.exe via PyInstaller
-├── setup.bat                  ← dev setup, installs pip deps, starts server
-│
-├── backups/                   ← created on first launch
-│   └── original_system_profile.json   ← NEVER OVERWRITE — rollback anchor (Goal 7)
-├── profiles/                  ← created on first launch
-│   ├── baseline.json          ← Day 1 performance snapshot
-│   └── thresholds.json        ← user-customized warning thresholds
-├── logs/                      ← created on first launch
-│   └── session_YYYY-MM-DD.jsonl  ← rotates at 5000 lines
-└── version.json               ← created on first launch, used for Goal 10 update checks
-```
+
+**Virtual environment:** A `.venv` is present in the project root. Activate with `.venv\Scripts\activate` before running Python commands.
+
+**Test suite notes:**
+- Set `CI=true` to skip hardware-dependent checks (GPUtil, WMI, live psutil reads)
+- Generates `test_report.html` in the project root after every run
+- Tests are static analysis + logic checks — no Flask server needs to be running
 
 ---
 
 ## Architecture: How It Works
 
+### Threading Model (server.py)
+Four daemon threads run at module load:
+1. **`_cpu_loop`** — calls `psutil.cpu_percent(interval=1.0)` in a tight loop, caches to `_cpu_cache`. Hot path never blocks on CPU measurement.
+2. **`_gpu_worker`** — calls `GPUtil.getGPUs()` (shells out to nvidia-smi) every 5s, caches to `_gpu_cache`. nvidia-smi never blocks the poll cycle.
+3. **`_hw_scheduler`** — refreshes unified `_hw_cache` (CPU temp + voltage) every 10s for all platforms. Windows uses WMI; macOS uses `ioreg`; Linux uses `psutil.sensors_temperatures`.
+4. **`watch_for_shutdown`** (in `launch.py`) — polls `/api/stats` every 3s; after 5 consecutive failures calls `os._exit(0)` to clean up when the browser tab closes.
+
+**Locks:**
+- **`_state_lock`** guards `history` deques (read + write)
+- **`_log_lock`** guards `_log_buffer` (append + flush)
+- **`_hw_lock`** guards `_hw_cache` (all platforms)
+- **`_err_lock`** guards `_err_buffer` (error tracking)
+
 ### Backend (server.py)
-- **Background daemon thread** polls hardware every 4.5s — Flask serves cached data instantly, zero blocking
-- **WMI calls cached 30s** — WMI COM operations are slow (50–200ms), only re-run every 30s
-- **`collections.deque(maxlen=60)`** for all history buffers — O(1), no manual trimming
-- **`cpu_percent(interval=0)`** — non-blocking delta measurement
-- **Batched log writes** — disk I/O every 10 samples, not every poll
-- **Flask `threaded=True`** — concurrent request handling
+- **`_live_stats()`** (hot path) — called on every `/api/stats` request; reads only from in-memory caches (`_cpu_cache`, `_gpu_cache`, `_hw_cache`). Zero hardware I/O on the Flask thread.
+- **Unified `_hw_cache`** — replaces the Windows-only `_wmi_cache`. Dict: `{'cpu_temp': None, 'cpu_volt': None, 'ts': 0, 'ttl': 10}`
+- **`get_cpu_temp_voltage()`** — hot path wrapper: just `with _hw_lock: return _hw_cache['cpu_temp'], _hw_cache['cpu_volt']`
+- **`get_gpu_cached()`** — returns a snapshot copy of `_gpu_cache` under `_state_lock`
+- **`collections.deque(maxlen=60)`** for all history buffers — no manual trimming needed
+- **Batched log writes** — `_log_buffer` flushed every 60s (`LOG_FLUSH_SECS`), not per poll; also flushed on exit via `atexit`
+- **Error tracking** — `_log_err(ctx, exc)` appends to `_err_buffer`; background flush writes to `logs/errors.jsonl`
+- **`_net_warmed_up`** flag — first `_net_speed()` call returns zeros to prevent false-positive network spike
+- **Startup sequence**: collects system info → loads/generates thresholds → saves original profile (once ever) → warms up CPU sampler (1.2s sleep) → saves baseline (once ever)
+
+### Cross-Platform Hardware Monitoring
+| Platform | CPU Temp | CPU Voltage | GPU |
+|----------|----------|-------------|-----|
+| Windows | WMI `MSAcpi_ThermalZoneTemperature` or LibreHardwareMonitor | WMI `Win32_Processor` | GPUtil (nvidia-smi) |
+| macOS | `osx-cpu-temp` or `powermetrics` via subprocess | N/A | `system_profiler` + `ioreg` |
+| Linux | `psutil.sensors_temperatures` | N/A | GPUtil (nvidia-smi) |
 
 ### Frontend (dashboard.html)
-- **All 38 DOM refs cached** on init in `DOM{}` object — zero re-querying per render
-- **Single `/api/stats` fetch** per 5s cycle — was 5 separate calls, now 1
-- **Chart history** driven from server-side deque, not client-side pushes
-- **`chart.update('none')`** — no re-animation cost on every update
+- **All DOM refs cached** on init in a `DOM{}` object — zero re-querying per render cycle
+- **Single `/api/stats` fetch** per refresh cycle (configurable: 2s/5s/10s/30s/60s)
+- **Chart history** driven from server-side deques, not client-side accumulation
+- **`chart.update('none')`** — skips re-animation on every data update
 
 ### API Endpoints
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/` | GET | Serves dashboard.html |
-| `/api/system` | GET | Static hardware info (called once) |
-| `/api/stats` | GET | Live cached metrics snapshot |
+| `/api/system` | GET | Static hardware info (called once on page load) |
+| `/api/stats` | GET | Live cached metrics snapshot + warnings + history |
 | `/api/thresholds` | GET/POST | Read/write warning thresholds |
 | `/api/thresholds/reset` | POST | Reset to smart hardware defaults |
 | `/api/baseline` | GET | Day 1 baseline snapshot |
 | `/api/original_profile` | GET | Original system profile |
 | `/api/version` | GET | Version info for update notifications |
+| `/api/feedback` | POST | Submit in-app feedback (auto-triaged by priority) |
+| `/api/feedback/queue` | GET | Review open feedback items sorted by priority |
+| `/api/diagnostics` | GET | Self-healing diagnostic info for N/A indicators (`?test=1` for mock) |
+| `/api/autofix` | POST | Run whitelisted pip installs (strict `ALLOWED_FIXES` whitelist) |
+| `/api/shutdown` | POST | Flush logs and shut down server (called by `beforeunload`) |
+| `/api/telemetry` | GET | Anonymous install/launch stats (local only unless `TELEMETRY_URL` set) |
+| `/api/errors` | GET | Recent error log entries from `logs/errors.jsonl` |
 
 ---
 
 ## Warning System
 
-6 warning types, all hardware-aware and user-customizable:
-- CPU temperature (model-specific TJmax lookup)
-- GPU temperature (model-specific limits)
+7 warning types, all hardware-aware and user-customizable via `thresholds.py`:
+- CPU temperature (model-specific TJmax from `CPU_THERMAL_MAP`)
+- GPU temperature (model-specific limits from `GPU_THERMAL_MAP`)
 - CPU voltage (min/max range per CPU family)
-- CPU sustained usage (rolling buffer, configurable window)
-- GPU sustained usage (rolling buffer, configurable window)
+- CPU sustained usage (rolling `_sustained['cpu']` deque, configurable window)
+- GPU sustained usage (rolling `_sustained['gpu']` deque, configurable window)
 - RAM usage %
-- Network spike (Nx above rolling baseline)
+- Network spike (Nx above rolling `_net_baseline` average)
 
 Warnings are dismissible banners (yellow=warning, red=critical). Auto re-enable after 60s.
-Settings panel accessible via ⚙ THRESHOLDS button — all thresholds live-editable.
 
 ---
 
 ## Safety Rules — NEVER VIOLATE THESE
 
-1. **`backups/original_system_profile.json` is NEVER overwritten.** It is saved once on first launch and is the rollback anchor for all future phases. If it exists, skip saving.
+1. **`backups/original_system_profile.json` is NEVER overwritten.** Saved once on first launch via `save_original_profile()` which checks `os.path.exists()` first. It is the rollback anchor for all future phases.
 
-2. **Goal 4 (automated BIOS changes) requires explicit user confirmation for every single action.** No automated changes are ever applied silently. This goal is not active until Phase 4.
+2. **Goal 4 (automated BIOS changes) requires explicit user confirmation for every single action.** Not active until Phase 4.
 
-3. **Never auto-update the .exe.** Goal 10 update flow is user-initiated only. The current build shows a notification banner only — the download/install flow has not been built yet.
+3. **Never auto-update the .exe.** The `/api/version` endpoint shows a notification banner only — the download/install flow has not been built.
 
-4. **Stress testing (Goal 3) must be graceful.** Designed to find failure limits, not cause data loss or hardware damage.
+4. **Flask `debug=False` always** — `debug=True` exposes an interactive debugger on the network.
 
-5. **Phase 4 does not activate until Phase 3 stability infrastructure is proven.**
-
----
-
-## Distribution Model
-- Target: single `KAM_Sentinel.exe`, no Python needed
-- Built with: `build_exe.bat` → PyInstaller `--onefile --noconsole`
-- Bundles: `dashboard.html`, `thresholds.py` via `--add-data`
-- First launch: creates `backups/`, `logs/`, `profiles/`, `version.json` next to the .exe
-- Works on any Windows machine — hardware auto-detected fresh on every machine
-- No hardcoded hardware values anywhere
+5. **`/api/autofix` has a strict `ALLOWED_FIXES` whitelist** — only `pip install GPUtil` and `pip install wmi pywin32` are permitted. Never expand this without careful review.
 
 ---
 
-## Development Setup (Windows)
-```bat
-# Install dependencies and start dev server
-setup.bat
-
-# Build portable .exe
-build_exe.bat
-
-# Output: dist/KAM_Sentinel.exe
-```
-
-Dependencies: `flask`, `psutil`, `GPUtil`, `wmi`, `pywin32`, `pyinstaller`
+## Distribution / PyInstaller Notes
+- Entry point for the `.exe` is `launch.py`, not `server.py`
+- `sys._MEIPASS` is the bundle temp dir; `os.path.dirname(sys.executable)` is the working dir next to the `.exe`
+- `dashboard.html` and `thresholds.py` are bundled via `--add-data` and accessed at runtime from `sys._MEIPASS`
+- `subprocess.Popen` is monkey-patched at startup to add `CREATE_NO_WINDOW` when running frozen — prevents CMD window flash from nvidia-smi
+- `backups/`, `logs/`, `profiles/`, and `version.json` are created next to the `.exe` on first launch (not inside the bundle)
 
 ---
 
-## What's Next (Backlog)
-
-### Goal 10 — Complete the update flow (not yet built)
-The notification banner exists. Still needed:
-1. Modal showing changelog when banner is clicked
-2. Download new `.exe` next to current one (rename old first — Windows can't overwrite running .exe)
-3. Relaunch new `.exe`, close old one
-4. Hosted `version.json` URL needs to be set in `server.py` → `UPDATE_CHECK_URL`
-
-### Phase 2 — KAM Forge
-- Suggestions engine based on collected baseline data
-- Thermal curve profiling over time
-- Power draw tracking
-
-### Phase 3 — Stress Testing
-- Stepped load profiles (light → heavy → failure)
-- Multiple benchmark types
-- Pre/post comparison against baseline
-
-### Phase 4 — Automated Changes (DANGER ZONE)
-- Requires Phase 3 infrastructure proven first
-- Every action needs explicit user confirmation
-- Rollback profile saved before any change applied
-- Will require elevated Windows permissions
-
----
-
-## Known Limitations / Notes
-- `psutil.sensors_temperatures()` may return nothing on Windows — falls back to WMI cache
-- GPU stats require `GPUtil` — graceful N/A display if not installed
-- WMI requires `pywin32` — graceful fallback if not available
-- First `.exe` launch on a new machine may be slow (Windows scanning new executable)
-- Log files are `.jsonl` format — one JSON object per line, easy to parse
-- `version.json` `UPDATE_CHECK_URL` field is empty string until a hosting URL is configured
+## Known Coding Constraints
+- `psutil.sensors_temperatures()` returns nothing on most Windows machines — only WMI fallback (`MSAcpi_ThermalZoneTemperature`) and LibreHardwareMonitor (via WMI namespace `root/LibreHardwareMonitor`) provide real temps
+- AMD Ryzen CPU temps specifically require LibreHardwareMonitor running as Administrator
+- `GPUtil` is an optional dep — all GPU stats gracefully degrade to `None`/`"N/A"` if not installed
+- `wmi`/`pywin32` are optional — voltage and some temp paths gracefully degrade
+- Log files are `.jsonl` (one JSON object per line), stored in `logs/session_YYYY-MM-DD.jsonl`
+- Server binds to `0.0.0.0:5000` by design (LAN accessible), but POST endpoints block non-localhost IPs

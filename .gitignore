@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Logs and runtime data
+logs/
+profiles/
+backups/
+
+# Test artifacts
+test_report.html
+*.bak
+
+# Dev scripts
+fix.py
+
+# IDE
+.claude/settings.local.json

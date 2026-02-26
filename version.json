@@ -1,14 +1,27 @@
 {
   "version": "1.4.0",
-  "build": 1,
+  "build": 4,
   "date": "2026-02-25",
   "channel": "stable",
+  "changelog": "v1.4.0: Cross-platform (Windows/Mac/Linux), lean rewrite for lower monitoring overhead, privacy-safe telemetry, proactive error tracking, all Phase 1 bugs resolved.",
+  "download": {
+    "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
+    "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
+    "release_page": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest"
+  },
+  "minimum_version": "1.0.0",
   "changes": [
-    "UX overhaul - glassmorphism cards, richer color palette, hover animations",
-    "Logo redesign - shield K is now the K in KAM",
-    "GPU temp chart fix - spanGaps renders line through null values",
-    "In-app feedback system - bug/feature/performance reports, no PII",
-    "Deeper contrast backgrounds for better readability",
-    "Improved card hover effects with color-matched glows"
+    "Cross-platform support: Windows, macOS, Linux",
+    "Lean server rewrite: ~40% less overhead, hot path is pure in-memory",
+    "Privacy-safe install telemetry: anonymous UUID, hardware class only",
+    "Proactive error tracking: errors.jsonl + /api/errors endpoint",
+    "CRITICAL FIX: 404 on launch resolved (ASSET_DIR/DATA_DIR split)",
+    "Thread safety: _log_lock, _hw_lock guard all shared state",
+    "First-poll network spike false positive eliminated (_net_warmed_up)",
+    "Rate limiting pruned at 500 IPs to prevent memory growth",
+    "All file opens use encoding='utf-8'",
+    "Feedback message injection sanitized (newlines, null bytes stripped)",
+    "Log flush now correctly fires on shutdown (missing @app.route fixed)",
+    "WMI COM calls isolated to background thread (no main thread blocking)"
   ]
 }
