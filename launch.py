@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KAM Sentinel v1.5.1 - Portable EXE Launcher
+KAM Sentinel v1.5.2 - Portable EXE Launcher
 Entry point for the compiled .exe — bundles Flask server + dashboard into one file.
 """
 
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.5.1          ║")
+    print("  ║        KAM SENTINEL  v1.5.2          ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")
