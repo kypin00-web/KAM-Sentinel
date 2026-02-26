@@ -8,9 +8,17 @@ Security:  rate limiting, input validation, no PII storage, localhost-only mode
 
 from flask import Flask, jsonify, send_from_directory, request
 from collections import deque
-import psutil, os, json, time, platform, datetime, threading
+import psutil, os, json, time, platform, datetime, threading, sys
 
-app = Flask(__name__, static_folder='.')
+# ── Path resolution: frozen .exe vs dev mode ─────────────────────────────────
+if getattr(sys, 'frozen', False):
+    ASSET_DIR = sys._MEIPASS                        # bundled files (dashboard.html, thresholds.py)
+    DATA_DIR  = os.path.dirname(sys.executable)     # persistent storage (logs, backups, profiles)
+else:
+    ASSET_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR  = ASSET_DIR
+
+app = Flask(__name__, static_folder=ASSET_DIR)
 
 # ── Security: Rate limiting ───────────────────────────────────────────────────
 _rate_limit = {}
@@ -27,6 +35,12 @@ def is_rate_limited(ip):
             return True
         window.append(now)
         _rate_limit[ip] = window
+        # Prune stale IPs to prevent unbounded memory growth
+        if len(_rate_limit) > 500:
+            cutoff = now - RATE_LIMIT_WINDOW
+            stale = [k for k, v in _rate_limit.items() if not any(t >= cutoff for t in v)]
+            for k in stale:
+                del _rate_limit[k]
     return False
 
 @app.before_request
@@ -72,7 +86,7 @@ def validate_threshold_data(data, depth=0):
     return True, None
 
 # Suppress CMD window flash from nvidia-smi when running as .exe (--noconsole build)
-import subprocess, sys
+import subprocess
 if sys.platform == 'win32' and getattr(sys, 'frozen', False):
     _orig_popen = subprocess.Popen
     def _silent_popen(*args, **kwargs):
@@ -95,12 +109,13 @@ except Exception:
     WMI_AVAILABLE = False
     _wmi = None
 
-BASE_DIR          = os.path.dirname(os.path.abspath(__file__))
-BACKUP_DIR        = os.path.join(BASE_DIR, 'backups')
-LOG_DIR           = os.path.join(BASE_DIR, 'logs')
-PROFILE_DIR       = os.path.join(BASE_DIR, 'profiles')
+BACKUP_DIR        = os.path.join(DATA_DIR, 'backups')
+LOG_DIR           = os.path.join(DATA_DIR, 'logs')
+PROFILE_DIR       = os.path.join(DATA_DIR, 'profiles')
 BASELINE_FILE     = os.path.join(PROFILE_DIR, 'baseline.json')
 ORIG_PROFILE_FILE = os.path.join(BACKUP_DIR, 'original_system_profile.json')
+
+UPDATE_CHECK_URL  = ''  # Set to hosted version.json URL to enable update notifications
 
 for d in [BACKUP_DIR, LOG_DIR, PROFILE_DIR]:
     os.makedirs(d, exist_ok=True)
@@ -112,6 +127,8 @@ history = {k: deque(maxlen=MAX_HISTORY) for k in
 
 # FIX 5: Thread lock for shared mutable state
 _state_lock = threading.Lock()
+_wmi_lock   = threading.Lock()   # separate lock for slow WMI cache (avoids blocking Flask with _state_lock)
+_log_lock   = threading.Lock()   # protects _log_buffer across threads
 
 # FIX 2: WMI cache - only re-poll every 10 seconds
 _wmi_cache = {'cpu_voltage':None,'cpu_temp':None,'last_poll':0,'interval':10}
@@ -120,6 +137,7 @@ _wmi_cache = {'cpu_voltage':None,'cpu_temp':None,'last_poll':0,'interval':10}
 _net_prev      = psutil.net_io_counters()
 _net_time_prev = time.time()
 _net_baseline  = deque(maxlen=36)
+_net_warmed_up = False  # skip first delta to avoid false spike (bytes sent since boot)
 
 # Sustained tracking with auto-cap deques
 _sustained = {'cpu': deque(maxlen=12), 'gpu': deque(maxlen=12)}
@@ -201,10 +219,13 @@ def get_system_info():
 
 
 def get_cpu_temp_voltage():
-    """FIX 2: Only call WMI every 10s, cache the rest."""
+    """FIX 2+6: Only call WMI every 10s, cache the rest. _wmi_lock prevents race."""
     now = time.time()
-    if now - _wmi_cache['last_poll'] < _wmi_cache['interval']:
-        return _wmi_cache['cpu_temp'], _wmi_cache['cpu_voltage']
+    with _wmi_lock:
+        if now - _wmi_cache['last_poll'] < _wmi_cache['interval']:
+            return _wmi_cache['cpu_temp'], _wmi_cache['cpu_voltage']
+        # Mark as polling now to prevent second thread from also triggering WMI
+        _wmi_cache['last_poll'] = now
     temp = volt = None
     try:
         temps = psutil.sensors_temperatures()
@@ -226,7 +247,8 @@ def get_cpu_temp_voltage():
                 if hasattr(v,'CurrentVoltage') and v.CurrentVoltage:
                     volt = round(v.CurrentVoltage/10.0,3); break
         except: pass
-    _wmi_cache.update({'cpu_temp':temp,'cpu_voltage':volt,'last_poll':now})
+    with _wmi_lock:
+        _wmi_cache.update({'cpu_temp':temp,'cpu_voltage':volt,'last_poll':now})
     return temp, volt
 
 
@@ -275,10 +297,13 @@ if GPU_AVAILABLE:
 
 
 def get_network_speed():
-    global _net_prev, _net_time_prev
+    global _net_prev, _net_time_prev, _net_warmed_up
     try:
         curr = psutil.net_io_counters()
         now  = time.time()
+        if not _net_warmed_up:  # FIX 10: first delta = all bytes since boot → skip it
+            _net_prev = curr; _net_time_prev = now; _net_warmed_up = True
+            return {"upload_kbps":0,"download_kbps":0,"upload_display":"0 KB/s","download_display":"0 KB/s"}
         el   = max(now-_net_time_prev, 0.001)
         up   = (curr.bytes_sent-_net_prev.bytes_sent)/el/1024
         dn   = (curr.bytes_recv-_net_prev.bytes_recv)/el/1024
@@ -312,17 +337,20 @@ def evaluate_warnings(cpu, gpu, ram, net):
     elif rp >= t['ram']['usage_warn']: w.append({"id":"ram_warn","level":"warning","component":"RAM","message":f"RAM high: {rp}% (warn: {t['ram']['usage_warn']}%)"})
 
     sn = max(1, t['cpu']['usage_sustain_sec']//5)
-    _sustained['cpu'].append(cpu['usage'])
-    if len(_sustained['cpu']) >= sn:
-        avg = sum(_sustained['cpu'])/len(_sustained['cpu'])
+    with _state_lock:  # FIX 7: _sustained deques not thread-safe without lock
+        _sustained['cpu'].append(cpu['usage'])
+        cpu_sustained_snap = list(_sustained['cpu'])
+        gpu_sustained_snap = list(_sustained['gpu']) if gpu['usage'] is not None else None
+        if gpu['usage'] is not None:
+            _sustained['gpu'].append(gpu['usage'])
+    if len(cpu_sustained_snap) >= sn:
+        avg = sum(cpu_sustained_snap)/len(cpu_sustained_snap)
         if avg >= t['cpu']['usage_crit']: w.append({"id":"cpu_sc","level":"critical","component":"CPU","message":f"CPU sustained {avg:.0f}% for {t['cpu']['usage_sustain_sec']}s"})
         elif avg >= t['cpu']['usage_warn']: w.append({"id":"cpu_sw","level":"warning","component":"CPU","message":f"CPU sustained high: {avg:.0f}% for {t['cpu']['usage_sustain_sec']}s"})
-    if gpu['usage'] is not None:
-        _sustained['gpu'].append(gpu['usage'])
-        if len(_sustained['gpu']) >= sn:
-            avg = sum(_sustained['gpu'])/len(_sustained['gpu'])
-            if avg >= t['gpu']['usage_crit']: w.append({"id":"gpu_sc","level":"critical","component":"GPU","message":f"GPU sustained {avg:.0f}%"})
-            elif avg >= t['gpu']['usage_warn']: w.append({"id":"gpu_sw","level":"warning","component":"GPU","message":f"GPU sustained high: {avg:.0f}%"})
+    if gpu_sustained_snap is not None and len(gpu_sustained_snap) >= sn:
+        avg = sum(gpu_sustained_snap)/len(gpu_sustained_snap)
+        if avg >= t['gpu']['usage_crit']: w.append({"id":"gpu_sc","level":"critical","component":"GPU","message":f"GPU sustained {avg:.0f}%"})
+        elif avg >= t['gpu']['usage_warn']: w.append({"id":"gpu_sw","level":"warning","component":"GPU","message":f"GPU sustained high: {avg:.0f}%"})
 
     _net_baseline.append(dn)
     nb = t['network']['baseline_samples']
@@ -363,34 +391,38 @@ def collect_live_stats():
 
 def log_session_stats(stats):
     """FIX 4: Buffer writes, flush every 60s instead of every poll."""
-    _log_buffer.append({"ts":stats['timestamp'],"cpu":stats['cpu'],
-        "ram":stats['ram'],"gpu":stats['gpu'],"warnings":stats['warnings']})
-    if time.time()-_last_log_flush >= LOG_FLUSH_SECS:
+    with _log_lock:
+        _log_buffer.append({"ts":stats['timestamp'],"cpu":stats['cpu'],
+            "ram":stats['ram'],"gpu":stats['gpu'],"warnings":stats['warnings']})
+        should_flush = time.time()-_last_log_flush >= LOG_FLUSH_SECS
+    if should_flush:
         _flush_log()
 
 def _flush_log():
     global _last_log_flush
-    if not _log_buffer: return
+    with _log_lock:
+        if not _log_buffer: return
+        entries = list(_log_buffer)
+        _log_buffer.clear()
+        _last_log_flush = time.time()
     today = datetime.date.today().isoformat()
     try:
-        with open(os.path.join(LOG_DIR,f"session_{today}.jsonl"),'a') as f:
-            for e in _log_buffer: f.write(json.dumps(e)+'\n')
-        _log_buffer.clear()
+        with open(os.path.join(LOG_DIR,f"session_{today}.jsonl"),'a', encoding='utf-8') as f:
+            for e in entries: f.write(json.dumps(e)+'\n')
     except Exception as e:
         print(f"  [WARN] Log flush failed: {e}")
-    _last_log_flush = time.time()
 
 
 def save_original_profile(sysinfo):
     if os.path.exists(ORIG_PROFILE_FILE): return False
-    with open(ORIG_PROFILE_FILE,'w') as f:
+    with open(ORIG_PROFILE_FILE,'w', encoding='utf-8') as f:
         json.dump({"type":"ORIGINAL_SYSTEM_PROFILE","warning":"DO NOT DELETE — required for rollback",
             "saved_at":datetime.datetime.now().isoformat(),"system_info":sysinfo},f,indent=2)
     print(f"  [BACKUP] Saved -> {ORIG_PROFILE_FILE}"); return True
 
 def save_baseline(sysinfo, stats):
     if os.path.exists(BASELINE_FILE): return False
-    with open(BASELINE_FILE,'w') as f:
+    with open(BASELINE_FILE,'w', encoding='utf-8') as f:
         json.dump({"type":"BASELINE_SNAPSHOT","saved_at":datetime.datetime.now().isoformat(),
             "system_info":sysinfo,"initial_metrics":{"cpu_usage":stats['cpu']['usage'],
             "cpu_temp":stats['cpu']['temp'],"cpu_voltage":stats['cpu']['voltage'],
@@ -417,7 +449,7 @@ atexit.register(_flush_log)
 
 
 @app.route('/')
-def index(): return send_from_directory('.','dashboard.html')
+def index(): return send_from_directory(ASSET_DIR,'dashboard.html')
 
 @app.route('/api/system')
 def api_system(): return jsonify(_system_info)
@@ -455,13 +487,13 @@ def api_reset_thresholds():
 @app.route('/api/baseline')
 def api_baseline():
     if os.path.exists(BASELINE_FILE):
-        with open(BASELINE_FILE) as f: return jsonify(json.load(f))
+        with open(BASELINE_FILE, encoding='utf-8') as f: return jsonify(json.load(f))
     return jsonify({"error":"No baseline"}),404
 
 @app.route('/api/original_profile')
 def api_original_profile():
     if os.path.exists(ORIG_PROFILE_FILE):
-        with open(ORIG_PROFILE_FILE) as f: return jsonify(json.load(f))
+        with open(ORIG_PROFILE_FILE, encoding='utf-8') as f: return jsonify(json.load(f))
     return jsonify({"error":"No profile"}),404
 
 @app.route('/api/feedback', methods=['POST'])
@@ -472,7 +504,7 @@ def api_feedback():
     category = data.get('category', 'general')
     if category not in ('bug', 'feature', 'performance', 'general'):
         category = 'general'
-    message = str(data.get('message', ''))[:500]
+    message = str(data.get('message', ''))[:500].replace('\n', ' ').replace('\r', ' ').replace('\x00', '')
     if not message.strip():
         return jsonify({"error": "No message"}), 400
 
@@ -581,6 +613,8 @@ def api_feedback_queue():
     items.sort(key=lambda x: priority_order.get(x.get('priority', 'low'), 5))
 
     return jsonify({"items": items[-50:], "counts": counts})
+
+@app.route('/api/shutdown', methods=['POST'])
 def api_shutdown():
     """Called by dashboard when browser tab/window is closed."""
     _flush_log()
@@ -693,6 +727,11 @@ def api_diagnostics():
 
     return jsonify(diags)
 
+@app.route('/api/version')
+def api_version():
+    """Returns current version and update check URL for dashboard banner."""
+    return jsonify({"version": "1.3.0", "update_check_url": UPDATE_CHECK_URL})
+
 @app.route('/api/autofix', methods=['POST'])
 def api_autofix():
     """Run safe auto-fixes for missing packages."""
@@ -725,7 +764,7 @@ def api_autofix():
 
 if __name__=='__main__':
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.2            ║")
+    print("  ║        KAM SENTINEL  v1.3            ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Open browser -> http://localhost:5000")
     if not GPU_AVAILABLE: print("  [!] pip install GPUtil  for GPU data")
