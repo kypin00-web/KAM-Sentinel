@@ -255,6 +255,23 @@ try:
     else:
         fail("_read_fan_rpms missing -- fan RPM reading not implemented")
 
+    # Module 2 — Benchmarks
+    for fn in ('bench_cpu_st', 'bench_cpu_mt', 'bench_ram_bw', 'bench_disk'):
+        if fn in src:
+            ok(f"{fn}() present -- benchmark function available")
+        else:
+            fail(f"{fn}() missing -- Module 2 benchmark not implemented")
+
+    if '_bench_status' in src:
+        ok("_bench_status present -- benchmark state tracking available")
+    else:
+        fail("_bench_status missing -- benchmark state tracking not implemented")
+
+    if 'BENCH_FILE' in src:
+        ok("BENCH_FILE constant present -- benchmark history log path defined")
+    else:
+        fail("BENCH_FILE missing -- benchmark history log not defined")
+
     if 'CREATE_NO_WINDOW' in src:
         ok("CREATE_NO_WINDOW set -- no CMD flash when running as .exe")
     else:
@@ -439,9 +456,12 @@ try:
         ('Feedback endpoint',       'api/feedback' in html),
         ('spanGaps chart fix',      'spanGaps' in html),
         ('Logo K in KAM',           'AM</span>' in html or '>AM<' in html),
-        ('Forge tab present',        'tab-forge' in html),
-        ('Fan chart canvas present', 'chart-fan-curve' in html),
-        ('Preset buttons present',   'preset-SILENT' in html),
+        ('Forge tab present',             'tab-forge' in html),
+        ('Fan chart canvas present',      'chart-fan-curve' in html),
+        ('Preset buttons present',        'preset-SILENT' in html),
+        ('Bench quick button present',    'bench-quick-btn' in html),
+        ('Bench score display present',   'bsr-st' in html),
+        ('Bench history section present', 'bench-history' in html),
     ]
     for name, result in checks:
         if result:
@@ -674,6 +694,66 @@ try:
             fail(f"POST /api/forge/fan_curves/select returned {resp2.status_code}")
     else:
         fail(f"GET /api/forge/fan_curves -> {resp.status_code} (expected 200)")
+
+    # /api/forge/benchmark/status returns 200 with required keys
+    resp = client.get('/api/forge/benchmark/status')
+    if resp.status_code == 200:
+        ok("GET /api/forge/benchmark/status -> 200")
+        bs = resp.get_json()
+        for key in ('running', 'step', 'result'):
+            if key in bs:
+                ok(f"/api/forge/benchmark/status has key: '{key}'")
+            else:
+                fail(f"/api/forge/benchmark/status missing key: '{key}'")
+    else:
+        fail(f"GET /api/forge/benchmark/status -> {resp.status_code} (expected 200)")
+
+    # POST /api/forge/benchmark -> 200 (started) or 409 (already running)
+    resp = client.post(
+        '/api/forge/benchmark',
+        json={'mode': 'quick'},
+        environ_base={'REMOTE_ADDR': '127.0.0.1'}
+    )
+    if resp.status_code in (200, 409):
+        bd = resp.get_json()
+        if resp.status_code == 200 and bd.get('started'):
+            ok("POST /api/forge/benchmark -> started (run_id present)")
+        elif resp.status_code == 409 and bd.get('error'):
+            ok("POST /api/forge/benchmark -> 409 already running (state consistent)")
+        else:
+            fail(f"POST /api/forge/benchmark unexpected response: {bd}")
+    else:
+        fail(f"POST /api/forge/benchmark returned {resp.status_code} (expected 200 or 409)")
+
+    # /api/forge/benchmark/history returns 200 with key 'runs'
+    resp = client.get('/api/forge/benchmark/history')
+    if resp.status_code == 200:
+        ok("GET /api/forge/benchmark/history -> 200")
+        hd = resp.get_json()
+        if 'runs' in hd:
+            ok("/api/forge/benchmark/history has key: 'runs'")
+        else:
+            fail("/api/forge/benchmark/history missing key: 'runs'")
+    else:
+        fail(f"GET /api/forge/benchmark/history -> {resp.status_code} (expected 200)")
+
+    # /api/forge/benchmark/baseline returns 200 or 404 (no runs yet)
+    resp = client.get('/api/forge/benchmark/baseline')
+    if resp.status_code in (200, 404):
+        ok(f"GET /api/forge/benchmark/baseline -> {resp.status_code} (expected 200 or 404)")
+    else:
+        fail(f"GET /api/forge/benchmark/baseline -> {resp.status_code} (expected 200 or 404)")
+
+    # POST /api/forge/benchmark with invalid mode -> 400
+    resp = client.post(
+        '/api/forge/benchmark',
+        json={'mode': 'turbo'},
+        environ_base={'REMOTE_ADDR': '127.0.0.1'}
+    )
+    if resp.status_code == 400:
+        ok("POST /api/forge/benchmark with invalid mode -> 400")
+    else:
+        fail(f"POST /api/forge/benchmark bad mode returned {resp.status_code} (expected 400)")
 
 except Exception as e:
     import traceback

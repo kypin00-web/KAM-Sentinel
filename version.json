@@ -1,9 +1,9 @@
 {
-  "version": "1.5.1",
-  "build": 11,
+  "version": "1.5.2",
+  "build": 12,
   "date": "2026-02-26",
   "channel": "stable",
-  "changelog": "v1.5.1: Module 3 — Forge Tab / Fan Control. Preset selector (Silent/Balanced/Performance/Full Send), fan curve Chart.js chart, live RPM display via LibreHardwareMonitor WMI. Forge tab shown on Windows only. Persists active preset to profiles/fan_curve.json.",
+  "changelog": "v1.5.2: Module 2 — System Benchmarks. Pure Python CPU ST/MT (sqrt+log loop), RAM bandwidth (256MB), disk I/O (128MB). Background thread — never blocks UI. Noise floor warning (>15% CPU). Temp capture (start, peak, end). First run auto-tagged as baseline; delta shown on all subsequent runs. History table (last 5 runs). Quick mode (~12s), Full mode (~60s).",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
     "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
@@ -11,11 +11,15 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: Forge tab — shown on Windows only, hidden on Mac/Linux",
-    "NEW: Fan curve presets: Silent, Balanced, Performance, Full Send",
-    "NEW: Chart.js line chart — CPU temp vs fan speed% for active preset",
-    "NEW: Live fan RPM display via LibreHardwareMonitor WMI (graceful N/A fallback)",
-    "NEW: Active preset persisted to profiles/fan_curve.json",
-    "NEW: /api/forge/fan_curves (GET) + /api/forge/fan_curves/select (POST)"
+    "NEW: System benchmark card in Forge tab",
+    "NEW: CPU single-thread + multi-thread benchmark (sqrt+log loop, 4M ops)",
+    "NEW: RAM bandwidth benchmark (256MB write+read, GB/s)",
+    "NEW: Disk I/O benchmark (128MB write+read, MB/s)",
+    "NEW: Quick mode (CPU ST+MT ~12s) and Full mode (all 4 ~60s)",
+    "NEW: Noise floor warning shown if CPU load >15% at benchmark start",
+    "NEW: Temp capture at start, peak, end during benchmark run",
+    "NEW: First run auto-tagged as baseline; delta % shown green/red on all subsequent",
+    "NEW: History table shows last 5 runs with date, ST, MT, temp, and baseline tag",
+    "NEW: /api/forge/benchmark POST, /api/forge/benchmark/status GET, /api/forge/benchmark/history GET, /api/forge/benchmark/baseline GET"
   ]
 }

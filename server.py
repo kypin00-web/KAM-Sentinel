@@ -6,7 +6,8 @@ All hardware I/O in background threads — server never blocks on sensors
 """
 from flask import Flask, jsonify, send_from_directory, request
 from collections import deque
-import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re, struct
+from concurrent.futures import ThreadPoolExecutor
+import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re, struct, math
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 if getattr(sys, 'frozen', False):
@@ -91,7 +92,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.1'
+VER               = '1.5.2'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -121,6 +122,11 @@ def _read_fan_rpms():
         return []
 
 _active_fan_preset = _load_active_preset()
+
+# ── Benchmark state ────────────────────────────────────────────────────────────
+BENCH_FILE    = os.path.join(LOG_DIR, 'benchmarks.jsonl')
+_bench_lock   = threading.Lock()
+_bench_status = dict(running=False, step=None, run_id=None, result=None, noise_warn=False)
 
 # ── Locks ─────────────────────────────────────────────────────────────────────
 _state_lock = threading.Lock()
@@ -415,6 +421,152 @@ def _fps_worker():
         time.sleep(2)
 
 threading.Thread(target=_fps_worker, daemon=True).start()
+
+# ── Benchmark functions (pure Python, no external deps) ───────────────────────
+def _bench_worker_fn(n):
+    """Float math workload: sqrt+log loop. Used for both ST and MT CPU tests."""
+    s = 0.0
+    for i in range(1, n + 1):
+        s += math.sqrt(float(i)) + math.log(float(i))
+    return s
+
+def bench_cpu_st(n=4_000_000):
+    """Single-threaded CPU benchmark. Returns score (kOps/s) + elapsed."""
+    t0 = time.perf_counter()
+    _bench_worker_fn(n)
+    elapsed = time.perf_counter() - t0
+    return dict(score=round(n / elapsed / 1000), elapsed_s=round(elapsed, 2))
+
+def bench_cpu_mt(n_per=4_000_000):
+    """Multi-threaded CPU benchmark spread across physical cores."""
+    cores = max(1, psutil.cpu_count(logical=False) or 2)
+    t0 = time.perf_counter()
+    with ThreadPoolExecutor(max_workers=cores) as ex:
+        list(ex.map(_bench_worker_fn, [n_per] * cores))
+    elapsed = time.perf_counter() - t0
+    return dict(score=round(cores * n_per / elapsed / 1000),
+                elapsed_s=round(elapsed, 2), cores=cores)
+
+def bench_ram_bw(size_mb=256):
+    """Sequential RAM write+read. Returns GB/s for each pass."""
+    chunk = 1024 * 1024  # 1 MB
+    filler = bytes(chunk)
+    try:
+        buf = bytearray(size_mb * chunk)
+        mv = memoryview(buf)
+        t0 = time.perf_counter()
+        for i in range(size_mb):
+            mv[i * chunk:(i + 1) * chunk] = filler
+        w_el = time.perf_counter() - t0
+        t1 = time.perf_counter()
+        _ = bytes(buf)
+        r_el = time.perf_counter() - t1
+        del _; del buf
+        return dict(write_gbps=round(size_mb / w_el / 1024, 2),
+                    read_gbps=round(size_mb / r_el / 1024, 2))
+    except MemoryError:
+        return dict(write_gbps=0, read_gbps=0, error='MemoryError')
+
+def bench_disk(size_mb=128):
+    """Sequential disk write+read (128 MB temp file). Returns MB/s for each pass."""
+    chunk = 4 * 1024 * 1024  # 4 MB chunks
+    n = size_mb // 4
+    data = bytes(chunk)
+    tmp = os.path.join(DATA_DIR, f'_bench_{os.getpid()}.tmp')
+    try:
+        t0 = time.perf_counter()
+        with open(tmp, 'wb') as f:
+            for _ in range(n):
+                f.write(data)
+        w_el = time.perf_counter() - t0
+        t1 = time.perf_counter()
+        with open(tmp, 'rb') as f:
+            while f.read(chunk):
+                pass
+        r_el = time.perf_counter() - t1
+        return dict(write_mbps=round(size_mb / w_el),
+                    read_mbps=round(size_mb / r_el))
+    except Exception as e:
+        return dict(write_mbps=0, read_mbps=0, error=str(e)[:100])
+    finally:
+        try: os.remove(tmp)
+        except: pass
+
+def _run_benchmark(mode, run_id):
+    """Background thread: run benchmark suite, update _bench_status, save to jsonl."""
+    global _bench_status
+
+    def _upd(step):
+        with _bench_lock:
+            _bench_status['step'] = step
+
+    try:
+        noise_pct  = round(_cpu_cache, 1)
+        noise_warn = noise_pct > 15
+
+        temp_start, _ = get_cpu_temp_voltage()
+        temp_peak = temp_start
+
+        def _snap_peak():
+            nonlocal temp_peak
+            t, _ = get_cpu_temp_voltage()
+            if t and (temp_peak is None or t > temp_peak):
+                temp_peak = t
+
+        _upd('CPU single-thread...')
+        cpu_st = bench_cpu_st()
+        _snap_peak()
+
+        _upd('CPU multi-thread...')
+        cpu_mt = bench_cpu_mt()
+        _snap_peak()
+
+        ram_result = disk_result = None
+        if mode == 'full':
+            _upd('RAM bandwidth...')
+            ram_result = bench_ram_bw()
+            _snap_peak()
+
+            _upd('Disk I/O...')
+            disk_result = bench_disk()
+            _snap_peak()
+
+        temp_end, _ = get_cpu_temp_voltage()
+
+        # First run ever → baseline
+        baseline = not os.path.exists(BENCH_FILE)
+
+        result = dict(
+            run_id=run_id,
+            ts=int(time.time()),
+            date=datetime.datetime.now().isoformat(),
+            mode=mode,
+            baseline=baseline,
+            noise_pct=noise_pct,
+            noise_warn=noise_warn,
+            temp_start=temp_start,
+            temp_peak=temp_peak,
+            temp_end=temp_end,
+            cpu_st=cpu_st,
+            cpu_mt=cpu_mt,
+            ram=ram_result,
+            disk=disk_result,
+        )
+
+        try:
+            with open(BENCH_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(result) + '\n')
+        except Exception as e:
+            _log_err('bench_save', e)
+
+        with _bench_lock:
+            _bench_status.update(running=False, step=None, result=result,
+                                  noise_warn=noise_warn)
+    except Exception as e:
+        _log_err('benchmark_runner', e)
+        with _bench_lock:
+            _bench_status.update(running=False, step=None,
+                                  result=dict(error=str(e)[:200]))
 
 # ── Network speed ─────────────────────────────────────────────────────────────
 def _net_speed():
@@ -857,6 +1009,53 @@ def api_forge_fan_curves_select():
     except Exception as e:
         _log_err('fan_curves_select', e)
     return jsonify(status='ok', active=_active_fan_preset)
+
+@app.route('/api/forge/benchmark', methods=['POST'])
+def api_forge_benchmark():
+    global _bench_status
+    # Validate mode before checking running state so bad mode always → 400
+    d = request.get_json(silent=True) or {}
+    mode = d.get('mode', 'quick')
+    if mode not in ('quick', 'full'):
+        return jsonify(error='mode must be "quick" or "full"'), 400
+    with _bench_lock:
+        if _bench_status['running']:
+            return jsonify(error='Benchmark already running', running=True), 409
+        run_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        _bench_status.update(running=True, step='Starting...', run_id=run_id,
+                              result=None, noise_warn=False)
+    threading.Thread(target=_run_benchmark, args=(mode, run_id), daemon=True).start()
+    return jsonify(started=True, run_id=run_id, mode=mode)
+
+@app.route('/api/forge/benchmark/status')
+def api_forge_benchmark_status():
+    with _bench_lock:
+        return jsonify(dict(_bench_status))
+
+@app.route('/api/forge/benchmark/history')
+def api_forge_benchmark_history():
+    runs = []
+    if os.path.exists(BENCH_FILE):
+        with open(BENCH_FILE, encoding='utf-8') as f:
+            for ln in f:
+                try: runs.append(json.loads(ln))
+                except: pass
+    return jsonify(runs=list(reversed(runs[-20:])))  # last 20, newest first
+
+@app.route('/api/forge/benchmark/baseline')
+def api_forge_benchmark_baseline():
+    if not os.path.exists(BENCH_FILE):
+        return jsonify(error='No benchmark runs yet'), 404
+    # Return first run tagged as baseline, fall back to first run
+    first = None
+    with open(BENCH_FILE, encoding='utf-8') as f:
+        for ln in f:
+            try:
+                r = json.loads(ln)
+                if first is None: first = r
+                if r.get('baseline'): return jsonify(r)
+            except: pass
+    return jsonify(first) if first else (jsonify(error='No valid runs'), 404)
 
 
 if __name__ == '__main__':

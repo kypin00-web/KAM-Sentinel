@@ -528,6 +528,34 @@ footer {
 .fan-rpm-row { display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding:4px 0; }
 .fan-rpm-row .fan-k { color:var(--dim); }
 .fan-rpm-row .fan-v { color:var(--white); font-weight:600; }
+/* ── BENCHMARK CARD ───────────────────────────────────────────────────────── */
+.forge-grid-bench { grid-template-columns:minmax(440px,680px); }
+.bench-btns { display:flex; gap:8px; margin-bottom:14px; }
+.bench-btn { background:var(--bg3); border:1px solid var(--border2); color:var(--dim2); font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:2px; padding:8px 16px; border-radius:3px; cursor:pointer; transition:all .2s; }
+.bench-btn:hover { border-color:var(--yellow); color:var(--text); }
+.bench-btn:disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
+.bench-btn.running { border-color:var(--yellow); color:var(--yellow); animation:bench-pulse 1.2s ease-in-out infinite; }
+@keyframes bench-pulse { 0%,100%{ opacity:1 } 50%{ opacity:.5 } }
+.bench-status { font-family:'Share Tech Mono',monospace; font-size:.65rem; letter-spacing:2px; color:var(--dim2); margin-bottom:10px; min-height:1.1em; }
+.bench-status.running { color:var(--yellow); }
+.bench-noise-warn { font-size:.75rem; color:var(--yellow); background:rgba(255,214,0,.08); border:1px solid rgba(255,214,0,.2); border-radius:3px; padding:5px 10px; margin-bottom:10px; display:none; }
+.bench-noise-warn.show { display:block; }
+.bench-score-row { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--border); }
+.bench-score-row:last-child { border-bottom:none; }
+.bsr-k { color:var(--dim); font-size:.78rem; }
+.bsr-v { color:var(--white); font-weight:600; font-size:.88rem; }
+.bsr-delta { font-size:.7rem; font-weight:600; margin-left:6px; }
+.bsr-delta.pos { color:var(--green); }
+.bsr-delta.neg { color:var(--red); }
+.bench-history-toggle { font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:2px; color:var(--dim2); cursor:pointer; margin-top:12px; padding:4px 0; display:inline-block; }
+.bench-history-toggle:hover { color:var(--cyan); }
+.bench-history { display:none; margin-top:8px; overflow-x:auto; }
+.bench-history.open { display:block; }
+.bench-history table { width:100%; border-collapse:collapse; font-size:.75rem; }
+.bench-history th { color:var(--dim); font-family:'Share Tech Mono',monospace; font-size:.58rem; letter-spacing:2px; padding:4px 6px; text-align:left; border-bottom:1px solid var(--border2); white-space:nowrap; }
+.bench-history td { padding:4px 6px; color:var(--text); border-bottom:1px solid var(--border); }
+.bench-history tr:last-child td { border-bottom:none; }
+.baseline-tag { color:var(--cyan); font-size:.6rem; font-family:'Share Tech Mono',monospace; }
 </style>
 </head>
 <body>
@@ -735,6 +763,54 @@ footer {
 
 <!-- FORGE PANEL -->
 <div id="forge-panel" style="display:none; padding:20px 24px; max-width:1600px; margin:0 auto;">
+
+  <!-- BENCHMARKS CARD -->
+  <div class="section-label">BENCHMARKS</div>
+  <div class="forge-grid forge-grid-bench">
+    <div class="forge-card" style="--c:var(--yellow)">
+      <div class="forge-card-hdr">
+        <div class="forge-card-title">SYSTEM BENCHMARK</div>
+        <div class="card-tag">PURE PYTHON · NO DEPS</div>
+      </div>
+      <div class="bench-btns">
+        <button class="bench-btn" id="bench-quick-btn" onclick="runBench('quick')">&#x25B6; QUICK BENCH <span style="font-size:.55rem;opacity:.7">~12s</span></button>
+        <button class="bench-btn" id="bench-full-btn"  onclick="runBench('full')">&#x25B6; FULL BENCH <span style="font-size:.55rem;opacity:.7">~60s</span></button>
+      </div>
+      <div class="bench-status" id="bench-status">IDLE</div>
+      <div class="bench-noise-warn" id="bench-noise-warn">&#x26A0; High CPU load detected (&gt;15%) — results may be unreliable</div>
+      <div id="bench-scores-wrap">
+        <div class="bench-score-row">
+          <span class="bsr-k">CPU ST Score</span>
+          <span><span class="bsr-v" id="bsr-st">—</span><span class="bsr-delta" id="bsr-st-delta"></span></span>
+        </div>
+        <div class="bench-score-row">
+          <span class="bsr-k">CPU MT Score</span>
+          <span><span class="bsr-v" id="bsr-mt">—</span><span class="bsr-delta" id="bsr-mt-delta"></span></span>
+        </div>
+        <div class="bench-score-row" id="bsr-ram-row" style="display:none">
+          <span class="bsr-k">RAM Write / Read</span>
+          <span class="bsr-v" id="bsr-ram">—</span>
+        </div>
+        <div class="bench-score-row" id="bsr-disk-row" style="display:none">
+          <span class="bsr-k">Disk Write / Read</span>
+          <span class="bsr-v" id="bsr-disk">—</span>
+        </div>
+        <div class="bench-score-row">
+          <span class="bsr-k">Peak Temp</span>
+          <span class="bsr-v" id="bsr-temp">—</span>
+        </div>
+      </div>
+      <span class="bench-history-toggle" id="bench-hist-toggle" onclick="toggleBenchHistory()">&#x25BE; HISTORY</span>
+      <div class="bench-history" id="bench-history">
+        <table>
+          <thead><tr><th>DATE</th><th>ST</th><th>MT</th><th>TEMP</th><th>TAG</th></tr></thead>
+          <tbody id="bench-history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAN CONTROL CARD -->
   <div class="section-label">FAN CONTROL</div>
   <div class="forge-grid">
     <div class="forge-card" style="--c:var(--cyan)">
@@ -755,7 +831,7 @@ footer {
   </div>
 </div>
 
-<footer>KAM Sentinel v1.5.1 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
+<footer>KAM Sentinel v1.5.2 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
 
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal">
@@ -1506,7 +1582,12 @@ function switchTab(name) {
   document.getElementById('forge-panel').style.display    = name === 'forge'    ? '' : 'none';
   document.getElementById('tab-sentinel').classList.toggle('active', name === 'sentinel');
   document.getElementById('tab-forge').classList.toggle('active', name === 'forge');
-  if(name === 'forge' && !_forgeInited) { _forgeInited = true; initFanChart(); loadForgeFanCurves(); }
+  if(name === 'forge' && !_forgeInited) {
+    _forgeInited = true;
+    initFanChart();
+    loadForgeFanCurves();
+    _loadBenchBaseline();
+  }
 }
 
 function initFanChart() {
@@ -1585,6 +1666,136 @@ async function selectFanPreset(preset) {
   } catch(e) { console.error('Fan preset select error:', e); }
 }
 
+// ── FORGE — Benchmarks ────────────────────────────────────────────────────
+let _benchPolling  = null;
+let _benchBaseline = null;
+
+async function runBench(mode) {
+  const qBtn = document.getElementById('bench-quick-btn');
+  const fBtn = document.getElementById('bench-full-btn');
+  const statusEl = document.getElementById('bench-status');
+  if(qBtn) { qBtn.disabled = true; qBtn.classList.add('running'); }
+  if(fBtn) { fBtn.disabled = true; fBtn.classList.add('running'); }
+  statusEl.textContent = 'STARTING...';
+  statusEl.className = 'bench-status running';
+  try {
+    const r = await fetch('/api/forge/benchmark', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({mode})
+    });
+    const d = await r.json();
+    if(!r.ok || d.error) {
+      statusEl.textContent = d.error || 'Failed to start';
+      statusEl.className = 'bench-status';
+      _benchBtnsEnable();
+      return;
+    }
+    if(_benchPolling) clearInterval(_benchPolling);
+    _benchPolling = setInterval(_pollBench, 2000);
+  } catch(e) {
+    statusEl.textContent = 'ERROR';
+    statusEl.className = 'bench-status';
+    _benchBtnsEnable();
+  }
+}
+
+function _benchBtnsEnable() {
+  const qBtn = document.getElementById('bench-quick-btn');
+  const fBtn = document.getElementById('bench-full-btn');
+  if(qBtn) { qBtn.disabled = false; qBtn.classList.remove('running'); }
+  if(fBtn) { fBtn.disabled = false; fBtn.classList.remove('running'); }
+}
+
+async function _pollBench() {
+  try {
+    const r = await fetch('/api/forge/benchmark/status');
+    if(!r.ok) return;
+    const d = await r.json();
+    const statusEl = document.getElementById('bench-status');
+    if(d.running) {
+      if(statusEl) { statusEl.textContent = d.step || 'RUNNING...'; statusEl.className = 'bench-status running'; }
+    } else {
+      clearInterval(_benchPolling); _benchPolling = null;
+      if(statusEl) { statusEl.textContent = d.result ? 'COMPLETE' : 'IDLE'; statusEl.className = 'bench-status'; }
+      _benchBtnsEnable();
+      if(d.result && !d.result.error) {
+        _showBenchResult(d.result);
+        _refreshBenchHistory();
+      }
+    }
+    const nw = document.getElementById('bench-noise-warn');
+    if(nw) nw.classList.toggle('show', !!d.noise_warn);
+  } catch(_) {}
+}
+
+function _showBenchResult(r) {
+  const noiseWarn = document.getElementById('bench-noise-warn');
+  if(noiseWarn) noiseWarn.classList.toggle('show', !!r.noise_warn);
+
+  const st = document.getElementById('bsr-st');
+  const mt = document.getElementById('bsr-mt');
+  const temp = document.getElementById('bsr-temp');
+  const stDelta = document.getElementById('bsr-st-delta');
+  const mtDelta = document.getElementById('bsr-mt-delta');
+
+  if(st)   st.textContent   = r.cpu_st   ? r.cpu_st.score.toLocaleString() : '—';
+  if(mt)   mt.textContent   = r.cpu_mt   ? r.cpu_mt.score.toLocaleString() : '—';
+  if(temp) temp.textContent = r.temp_peak ? r.temp_peak + '°C' : '—';
+
+  function _applyDelta(el, cur, base) {
+    if(!el || !cur || !base) return;
+    const pct = ((cur - base) / base * 100).toFixed(1);
+    el.textContent = (pct >= 0 ? ' +' : ' ') + pct + '%';
+    el.className = 'bsr-delta ' + (pct >= 0 ? 'pos' : 'neg');
+  }
+  if(_benchBaseline) {
+    _applyDelta(stDelta, r.cpu_st?.score, _benchBaseline.cpu_st?.score);
+    _applyDelta(mtDelta, r.cpu_mt?.score, _benchBaseline.cpu_mt?.score);
+  }
+
+  const ramRow  = document.getElementById('bsr-ram-row');
+  const diskRow = document.getElementById('bsr-disk-row');
+  const ramEl   = document.getElementById('bsr-ram');
+  const diskEl  = document.getElementById('bsr-disk');
+  if(r.ram  && ramRow  && ramEl)  { ramRow.style.display  = ''; ramEl.textContent  = r.ram.write_gbps  + ' / ' + r.ram.read_gbps  + ' GB/s'; }
+  if(r.disk && diskRow && diskEl) { diskRow.style.display = ''; diskEl.textContent = r.disk.write_mbps + ' / ' + r.disk.read_mbps + ' MB/s'; }
+}
+
+async function _loadBenchBaseline() {
+  try {
+    const r = await fetch('/api/forge/benchmark/baseline');
+    if(r.ok) _benchBaseline = await r.json();
+  } catch(_) {}
+}
+
+async function _refreshBenchHistory() {
+  try {
+    const r = await fetch('/api/forge/benchmark/history');
+    if(!r.ok) return;
+    const d = await r.json();
+    const tbody = document.getElementById('bench-history-body');
+    if(!tbody) return;
+    tbody.innerHTML = (d.runs || []).slice(0, 5).map(run => {
+      const date = (run.date || '').substring(0, 16).replace('T', ' ');
+      const st   = run.cpu_st   ? run.cpu_st.score.toLocaleString()   : '—';
+      const mt   = run.cpu_mt   ? run.cpu_mt.score.toLocaleString()   : '—';
+      const tmp  = run.temp_peak ? run.temp_peak + '°C' : '—';
+      const tag  = run.baseline ? '<span class="baseline-tag">BASE</span>' : '';
+      return `<tr><td>${date}</td><td>${st}</td><td>${mt}</td><td>${tmp}</td><td>${tag}</td></tr>`;
+    }).join('');
+  } catch(_) {}
+}
+
+function toggleBenchHistory() {
+  const el = document.getElementById('bench-history');
+  if(!el) return;
+  const open = el.classList.toggle('open');
+  const tog = document.getElementById('bench-hist-toggle');
+  if(tog) tog.textContent = (open ? '\u25B4' : '\u25BE') + ' HISTORY';
+  if(open) _refreshBenchHistory();
+}
+
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
@@ -1641,7 +1852,7 @@ async function selectFanPreset(preset) {
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
   <div id="wn-box">
     <div id="wn-badge">WHAT'S NEW</div>
-    <div id="wn-title">KAM Sentinel v1.5.1</div>
+    <div id="wn-title">KAM Sentinel v1.5.2</div>
     <div id="wn-sub">Module 3: Forge tab — Fan Control is live.</div>
     <ul id="wn-steps">
       <li class="active">
