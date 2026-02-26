@@ -702,6 +702,7 @@ def api_diagnostics():
                                                    message=f'Found {len(gpus)} GPU(s)' if gpus else 'No GPU detected',fix=None)
     except ImportError: diags['gpu']=dict(status='missing_package',message='GPUtil not installed',
                                            fix='pip install GPUtil', auto_fix=True)
+    except Exception: diags['gpu']=dict(status='no_gpu_found',message='No NVIDIA GPU detected',fix=None)
     if sys.platform == 'win32':
         lhm = False
         try:
