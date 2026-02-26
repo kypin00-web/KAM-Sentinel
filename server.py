@@ -437,7 +437,10 @@ def _net_speed():
 # ── System info (called once at startup) ──────────────────────────────────────
 def _get_sysinfo():
     i = dict(os=platform.system(), os_version=platform.version(), os_release=platform.release(),
-             hostname=platform.node(), windows_dir=os.environ.get('SystemRoot','N/A'),
+             os_display=_os_class(),
+             hostname=platform.node(),
+             windows_dir=os.environ.get('SystemRoot', os.environ.get('HOME', 'N/A')) if sys.platform == 'win32' else os.environ.get('HOME', 'N/A'),
+             system_dir_label='Windows Dir' if sys.platform == 'win32' else 'Home Dir',
              cpu_name=platform.processor(), cpu_cores=psutil.cpu_count(logical=False),
              cpu_threads=psutil.cpu_count(logical=True))
     freq = None
@@ -458,6 +461,7 @@ def _get_sysinfo():
             if g: i['gpu_name'] = g[0].name; i['gpu_vram_mb'] = round(g[0].memoryTotal)
         except: pass
     i.update(manufacturer='N/A', model='N/A', bios_version='N/A', motherboard='N/A', directx='N/A')
+    i['graphics_api_label'] = 'DirectX'  # dashboard row label; overridden on macOS
 
     if sys.platform == 'win32':
         i['directx'] = 'DirectX 12'
@@ -477,6 +481,7 @@ def _get_sysinfo():
         except: pass
     elif sys.platform == 'darwin':
         i['manufacturer'] = 'Apple'
+        i['graphics_api_label'] = 'Metal'
         try:
             r = subprocess.run(['system_profiler','SPHardwareDataType'], capture_output=True, text=True, timeout=8)
             for ln in r.stdout.splitlines():
@@ -484,12 +489,36 @@ def _get_sysinfo():
                 if 'Model Name:'  in ln: i['model']    = ln.split(':',1)[1].strip()
                 if 'Chip:'        in ln: i['cpu_name'] = ln.split(':',1)[1].strip()
         except: pass
-        if i['gpu_name'] == 'N/A':
-            try:
-                r = subprocess.run(['system_profiler','SPDisplaysDataType'], capture_output=True, text=True, timeout=6)
+        try:
+            r = subprocess.run(['system_profiler','SPDisplaysDataType'], capture_output=True, text=True, timeout=6)
+            if r.returncode == 0:
                 for ln in r.stdout.splitlines():
-                    if 'Chipset Model:' in ln: i['gpu_name'] = ln.split(':',1)[1].strip(); break
+                    ln = ln.strip()
+                    if 'Chipset Model:' in ln and i['gpu_name'] == 'N/A':
+                        i['gpu_name'] = ln.split(':',1)[1].strip()
+                    if 'Metal Support:' in ln:
+                        i['directx'] = ln.split(':',1)[1].strip() or 'Metal'
+                        break
+        except: pass
+        # VRAM: try JSON for _spdisplays_vram; Apple Silicon has unified memory so show friendly message
+        if i['gpu_vram_mb'] == 'N/A':
+            try:
+                r = subprocess.run(['system_profiler','-json','SPDisplaysDataType'],
+                                   capture_output=True, text=True, timeout=8)
+                if r.returncode == 0:
+                    data = json.loads(r.stdout)
+                    for item in data.get('SPDisplaysDataType', []):
+                        vram_str = item.get('_spdisplays_vram') or item.get('spdisplays_vram')
+                        if vram_str:
+                            m = re.search(r'([\d.]+)\s*GB', vram_str, re.I)
+                            if m: i['gpu_vram_mb'] = int(float(m.group(1)) * 1024)
+                            else:
+                                m = re.search(r'([\d.]+)\s*MB', vram_str, re.I)
+                                if m: i['gpu_vram_mb'] = int(float(m.group(1)))
+                        break
             except: pass
+        if i['gpu_vram_mb'] == 'N/A' and i['gpu_name'] != 'N/A':
+            i['gpu_vram_display'] = 'Unified (shared with system)'
 
     disks = []
     for p in psutil.disk_partitions():

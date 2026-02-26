@@ -631,8 +631,8 @@ footer {
     <div class="sysinfo-card">
       <div class="si-title">SYSTEM & DISPLAY</div>
       <div class="si-row"><span class="si-key">OS</span><span class="si-val" id="si-os">—</span></div>
-      <div class="si-row"><span class="si-key">Windows Dir</span><span class="si-val" id="si-windir">—</span></div>
-      <div class="si-row"><span class="si-key">DirectX</span><span class="si-val accent-green" id="si-dx">—</span></div>
+      <div class="si-row"><span class="si-key" id="si-windir-label">Windows Dir</span><span class="si-val" id="si-windir">—</span></div>
+      <div class="si-row"><span class="si-key" id="si-dx-label">DirectX</span><span class="si-val accent-green" id="si-dx">—</span></div>
       <div class="si-row"><span class="si-key">GPU</span><span class="si-val accent-green" id="si-gpu">—</span></div>
       <div class="si-row"><span class="si-key">VRAM</span><span class="si-val" id="si-vram">—</span></div>
     </div>
@@ -948,6 +948,7 @@ function cacheDom() {
     'modal-detected','save-status',
     'si-mfr','si-model','si-mobo','si-bios','si-cpu','si-cores',
     'si-maxghz','si-ram','si-page','si-os','si-windir','si-dx','si-gpu','si-vram',
+    'si-windir-label','si-dx-label',
   ].forEach(id => DOM[id] = document.getElementById(id));
 }
 
@@ -1017,11 +1018,13 @@ async function loadSystemInfo() {
   set('si-maxghz', s.cpu_max_ghz !== 'N/A' ? `${s.cpu_max_ghz} GHz` : 'N/A');
   set('si-ram',    `${s.ram_total_mb} MB  (${s.ram_total_gb} GB)`);
   set('si-page',   s.pagefile_total_mb ? `${s.pagefile_used_mb} MB used / ${s.pagefile_total_mb} MB` : 'N/A');
-  set('si-os',     `Windows ${s.os_release}`);
+  set('si-os',     s.os_display || (s.os === 'Windows' ? `Windows ${s.os_release}` : `${s.os || 'N/A'} ${s.os_release || ''}`).trim());
+  if (DOM['si-windir-label'] && s.system_dir_label) DOM['si-windir-label'].textContent = s.system_dir_label;
   set('si-windir', s.windows_dir);
+  if (DOM['si-dx-label'] && s.graphics_api_label) DOM['si-dx-label'].textContent = s.graphics_api_label;
   set('si-dx',     s.directx);
   set('si-gpu',    s.gpu_name);
-  set('si-vram',   s.gpu_vram_mb !== 'N/A' ? `${s.gpu_vram_mb} MB` : 'N/A');
+  set('si-vram',   s.gpu_vram_display || (s.gpu_vram_mb !== 'N/A' ? `${s.gpu_vram_mb} MB` : 'N/A'));
 }
 
 // ── FIX: Single fetch per cycle — one round trip instead of multiple ──────
