@@ -84,7 +84,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.4.0'
+VER               = '1.4.1'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -110,7 +110,7 @@ _net_prev, _net_ts, _net_warmed_up = psutil.net_io_counters(), time.time(), Fals
 _net_base       = deque(maxlen=36)
 
 _cpu_cache      = 0.0          # written by background sampler, read on hot path
-_log_buf, _log_ts   = [], time.time()
+_log_buffer, _log_ts   = [], time.time()
 _err_buf, _err_ts   = [], time.time()
 
 # ── Background: CPU sampler ───────────────────────────────────────────────────
@@ -482,15 +482,15 @@ def _live_stats():
 def _log_stats(s):
     global _log_ts
     with _log_lock:
-        _log_buf.append(dict(ts=s['timestamp'],cpu=s['cpu'],ram=s['ram'],gpu=s['gpu'],warnings=s['warnings']))
+        _log_buffer.append(dict(ts=s['timestamp'],cpu=s['cpu'],ram=s['ram'],gpu=s['gpu'],warnings=s['warnings']))
         flush = time.time()-_log_ts >= 60
     if flush: _flush_log()
 
 def _flush_log():
     global _log_ts
     with _log_lock:
-        if not _log_buf: return
-        es, _log_buf[:] = list(_log_buf), []; _log_ts = time.time()
+        if not _log_buffer: return
+        es, _log_buffer[:] = list(_log_buffer), []; _log_ts = time.time()
     try:
         with open(os.path.join(LOG_DIR, f"session_{datetime.date.today().isoformat()}.jsonl"),'a',encoding='utf-8') as f:
             for e in es: f.write(json.dumps(e)+'\n')

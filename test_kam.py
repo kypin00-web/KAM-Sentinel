@@ -192,8 +192,8 @@ try:
         fail("No background polling thread -- stats collected on every request (blocks Flask)")
 
     # WMI caching
-    if 'WMI_CACHE_TTL' in src or '_wmi_cache_time' in src or '_wmi_cache' in src:
-        ok("WMI result caching present -- slow COM calls max once per 30s")
+    if 'WMI_CACHE_TTL' in src or '_wmi_cache_time' in src or '_wmi_cache' in src or '_hw_cache' in src:
+        ok("HW result caching present -- slow COM/ioreg calls max once per TTL")
     else:
         warn("No WMI caching -- every poll calls slow COM operations (50-200ms)")
 
@@ -210,8 +210,8 @@ try:
         warn("Flask threaded not set -- requests may queue behind each other")
 
     # Single cache object
-    if '_stat_cache' in src or '_cached_stats' in src or 'collect_live_stats' in src:
-        ok("Stat cache object present -- Flask serves pre-computed data")
+    if '_stat_cache' in src or '_cached_stats' in src or 'collect_live_stats' in src or '_live_stats' in src:
+        ok("Stat cache present -- Flask serves pre-computed in-memory data")
     else:
         warn("No stat cache found -- metrics may be computed on every request")
 

@@ -4,7 +4,7 @@ color 0B
 
 echo.
 echo  ============================================
-echo   KAM Sentinel v1.3 - Building Portable EXE
+echo   KAM Sentinel v1.4.1 - Building Portable EXE
 echo  ============================================
 echo.
 
