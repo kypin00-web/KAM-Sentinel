@@ -6,7 +6,7 @@ All hardware I/O in background threads — server never blocks on sensors
 """
 from flask import Flask, jsonify, send_from_directory, request
 from collections import deque
-import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re
+import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re, struct
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 if getattr(sys, 'frozen', False):
@@ -84,7 +84,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.4.5'
+VER               = '1.5.0'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -105,6 +105,12 @@ _hw_cache   = {'cpu_temp': None, 'cpu_volt': None, 'ts': 0, 'ttl': 10}
 
 _gpu_cache      = dict(usage=None, temp=None, name='N/A', vram_used=None, vram_total=None)
 _gpu_lock       = threading.Lock()
+
+_fps_history = deque(maxlen=60)
+_fps_cache   = dict(fps=None, fps_1pct_low=None, frametime_ms=None,
+                    source='rtss' if sys.platform == 'win32' else 'not_supported',
+                    available=False)
+_fps_lock    = threading.Lock()
 
 _net_prev, _net_ts, _net_warmed_up = psutil.net_io_counters(), time.time(), False
 _net_base       = deque(maxlen=36)
@@ -335,6 +341,46 @@ def _gpu_worker():
 threading.Thread(target=_gpu_worker, daemon=True).start()
 def get_gpu_cached():
     with _gpu_lock: return dict(_gpu_cache)
+
+# ── FPS Counter (RTSS shared memory, Windows-only) ────────────────────────────
+def _read_rtss_fps():
+    """Read current FPS from RTSS shared memory. Returns float or None."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        import mmap
+        m = mmap.mmap(-1, 4096, tagname='RTSSSharedMemoryV2', access=mmap.ACCESS_READ)
+        data = m.read(4096)
+        m.close()
+        if data[0:4] != b'RTSS':  # magic bytes — empty mapping means RTSS not running
+            return None
+        fps = struct.unpack_from('<f', data, 136)[0]
+        return round(fps, 1) if fps > 0 else None
+    except:
+        return None
+
+def _fps_worker():
+    while True:
+        try:
+            fps_val = _read_rtss_fps()
+            if fps_val is not None:
+                _fps_history.append(fps_val)
+                h = sorted(_fps_history)          # ascending: lowest FPS first
+                n = max(1, len(h) // 100)         # 1% of samples, minimum 1
+                low = round(sum(h[:n]) / n, 1)
+                ft  = round(1000.0 / fps_val, 2)
+                with _fps_lock:
+                    _fps_cache.update(fps=fps_val, fps_1pct_low=low,
+                                      frametime_ms=ft, available=True)
+            else:
+                with _fps_lock:
+                    _fps_cache.update(fps=None, fps_1pct_low=None,
+                                      frametime_ms=None, available=False)
+        except Exception as e:
+            _log_err('fps_worker', e)
+        time.sleep(2)
+
+threading.Thread(target=_fps_worker, daemon=True).start()
 
 # ── Network speed ─────────────────────────────────────────────────────────────
 def _net_speed():
@@ -752,6 +798,10 @@ def api_autofix():
         return jsonify(status='ok', message=f'Installed {", ".join(ALLOWED_FIXES[cmd])} -- restart to apply') \
                if r.returncode == 0 else (jsonify(status='error', message=r.stderr[:200]), 500)
     except Exception as e: return jsonify(status='error', message=str(e)), 500
+
+@app.route('/api/fps')
+def api_fps():
+    with _fps_lock: return jsonify(dict(_fps_cache))
 
 
 if __name__ == '__main__':

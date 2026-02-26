@@ -638,6 +638,7 @@ footer {
       <div class="card-big"><span id="gpu-usage">--</span><span class="card-unit">%</span></div>
       <div class="card-details">
         <div class="card-detail-row"><span class="cd-k">Temp</span><span class="cd-v" id="gpu-temp">-- °C</span><button class="diag-btn" id="diag-gpu-temp" onclick="showDiag('gpu')" title="Diagnostic info" style="display:none">⚠</button></div>
+        <div class="card-detail-row"><span class="cd-k">FPS</span><span class="cd-v" id="fps-val">--</span><span id="fps-low" style="font-size:.7rem;color:var(--dim);margin-left:6px;"></span><a id="fps-link" href="https://www.guru3d.com/download/rtss-rivatuner-statistics-server-download/" target="_blank" style="display:none;font-size:.65rem;color:var(--dim);margin-left:6px;">Install RTSS</a></div>
         <div class="card-detail-row"><span class="cd-k">VRAM Used</span><span class="cd-v" id="gpu-vram">-- MB</span></div>
         <div class="card-detail-row"><span class="cd-k">Name</span><span class="cd-v" id="gpu-name" style="font-size:.75rem">--</span></div>
       </div>
@@ -708,7 +709,7 @@ footer {
 
 </main>
 
-<footer>KAM Sentinel v1.4.5 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
+<footer>KAM Sentinel v1.5.0 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
 
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal">
@@ -1041,6 +1042,29 @@ async function fetchStats() {
   } catch(e) {
     console.warn('Stats fetch error:', e);
   }
+}
+
+// ── FPS counter ───────────────────────────────────────────────────────────────
+async function fetchFps() {
+  try {
+    const r = await fetch('/api/fps');
+    const d = await r.json();
+    const fpsEl  = document.getElementById('fps-val');
+    const lowEl  = document.getElementById('fps-low');
+    const linkEl = document.getElementById('fps-link');
+    if (!fpsEl) return;
+    if (d.available && d.fps !== null) {
+      fpsEl.textContent = d.fps;
+      fpsEl.className   = 'cd-v ' + (d.fps >= 60 ? 'ok' : d.fps >= 30 ? 'warn' : 'hot');
+      if (lowEl)  lowEl.textContent  = d.fps_1pct_low !== null ? `1% low: ${d.fps_1pct_low}` : '';
+      if (linkEl) linkEl.style.display = 'none';
+    } else {
+      fpsEl.textContent = '--';
+      fpsEl.className   = 'cd-v';
+      if (lowEl)  lowEl.textContent  = '';
+      if (linkEl) linkEl.style.display = d.source === 'rtss' ? 'inline' : 'none';
+    }
+  } catch(e) {}
 }
 
 // ── Warnings panel ────────────────────────────────────────────────────────
@@ -1407,6 +1431,7 @@ async function init() {
   const sel = document.getElementById('refresh-select');
   if(sel) sel.value = savedMs;
   _refreshInterval = setInterval(fetchStats, savedMs);
+  setInterval(fetchFps, 2000);
   // Load diagnostics for N/A indicators
   await loadDiagnostics();
   // Check for updates once on load (Goal 10)
@@ -1418,7 +1443,7 @@ window.addEventListener('load', init);
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.4.4';
+  const WN_VER     = '1.5.0';
   let wnStep = 0;
   let wnSteps, wnDots, wnNext, wnProgress;
 
@@ -1471,7 +1496,7 @@ window.addEventListener('load', init);
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
   <div id="wn-box">
     <div id="wn-badge">WHAT'S NEW</div>
-    <div id="wn-title">KAM Sentinel v1.4.4</div>
+    <div id="wn-title">KAM Sentinel v1.5.0</div>
     <div id="wn-sub">Phase 1 is complete. Here's what changed.</div>
     <ul id="wn-steps">
       <li class="active">

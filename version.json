@@ -1,9 +1,9 @@
 {
-  "version": "1.4.5",
-  "build": 9,
+  "version": "1.5.0",
+  "build": 10,
   "date": "2026-02-26",
   "channel": "stable",
-  "changelog": "v1.4.5: Hotfix - NameError in /api/autofix on success path (ALLOWED_FIXES reference); CSS orphan removed; footer version corrected.",
+  "changelog": "v1.5.0: Module 4 — FPS Counter. Live FPS via RTSS shared memory on Windows (auto-off on Mac/Linux). GPU card shows FPS, 1% low, and frametime. Background thread, 60-frame rolling history. /api/fps endpoint. Includes Timglenn123 PR: cpu_freq guard, Flask version fix, configurable port, macOS/Linux startup scripts.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
     "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
@@ -11,20 +11,13 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "Hotfix: /api/autofix success path crashed with NameError (WHITELIST -> ALLOWED_FIXES)",
-    "CSS: removed orphaned rule block in dashboard.html",
-    "UI: footer version corrected from v1.0 to v1.4.5",
-    "Cross-platform support: Windows, macOS, Linux",
-    "Lean server rewrite: ~40% less overhead, hot path is pure in-memory",
-    "Privacy-safe install telemetry: anonymous UUID, hardware class only",
-    "Proactive error tracking: errors.jsonl + /api/errors endpoint",
-    "CRITICAL FIX: 404 on launch resolved (ASSET_DIR/DATA_DIR split)",
-    "Thread safety: _log_lock, _hw_lock guard all shared state",
-    "First-poll network spike false positive eliminated (_net_warmed_up)",
-    "Rate limiting pruned at 500 IPs to prevent memory growth",
-    "All file opens use encoding='utf-8'",
-    "Feedback message injection sanitized (newlines, null bytes stripped)",
-    "Log flush now correctly fires on shutdown (missing @app.route fixed)",
-    "WMI COM calls isolated to background thread (no main thread blocking)"
+    "NEW: FPS counter via RTSS shared memory (Windows) — GPU card shows live FPS",
+    "NEW: 1% low FPS and frametime_ms displayed next to FPS",
+    "NEW: /api/fps endpoint with 60-frame rolling history",
+    "NEW: FPS color-coded: green >=60, yellow >=30, red <30",
+    "NEW: Install RTSS prompt shown on Windows when RTSS not running",
+    "Graceful on Mac/Linux: shows -- quietly, no Install link",
+    "Merged: Timglenn123 PR — cpu_freq guard, Flask version fix, configurable port",
+    "Merged: macOS/Linux startup scripts (run.sh, setup.sh)"
   ]
 }

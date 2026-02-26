@@ -234,6 +234,16 @@ try:
     else:
         fail("get_gpu_stats() used directly in poll -- blocks on nvidia-smi")
 
+    if '_fps_worker' in src:
+        ok("FPS worker thread present -- RTSS polling never blocks main thread")
+    else:
+        fail("_fps_worker missing -- FPS background polling not implemented")
+
+    if '_fps_cache' in src:
+        ok("FPS cache present -- /api/fps served from memory")
+    else:
+        fail("_fps_cache missing -- FPS endpoint has no backing cache")
+
     if 'CREATE_NO_WINDOW' in src:
         ok("CREATE_NO_WINDOW set -- no CMD flash when running as .exe")
     else:
@@ -604,6 +614,19 @@ try:
         ok("/api/shutdown exists and returns 200")
     else:
         fail(f"/api/shutdown returned {resp.status_code} (expected 200 -- check @app.route decorator)")
+
+    # /api/fps endpoint returns 200 with required keys
+    resp = client.get('/api/fps')
+    if resp.status_code == 200:
+        ok("GET /api/fps -> 200")
+        fps_data = resp.get_json()
+        for key in ('fps', 'fps_1pct_low', 'frametime_ms', 'source', 'available'):
+            if key in fps_data:
+                ok(f"/api/fps has key: '{key}'")
+            else:
+                fail(f"/api/fps missing key: '{key}'")
+    else:
+        fail(f"GET /api/fps -> {resp.status_code} (expected 200)")
 
 except Exception as e:
     import traceback
