@@ -84,7 +84,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.4.4'
+VER               = '1.4.5'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -738,7 +738,7 @@ def api_autofix():
         flags = dict(creationflags=subprocess.CREATE_NO_WINDOW) if sys.platform=='win32' else {}
         r = subprocess.run([sys.executable,'-m','pip','install']+ALLOWED_FIXES[cmd],
                           capture_output=True, text=True, timeout=60, **flags)
-        return jsonify(status='ok', message=f'Installed {", ".join(WHITELIST[cmd])} -- restart to apply') \
+        return jsonify(status='ok', message=f'Installed {", ".join(ALLOWED_FIXES[cmd])} -- restart to apply') \
                if r.returncode == 0 else (jsonify(status='error', message=r.stderr[:200]), 500)
     except Exception as e: return jsonify(status='error', message=str(e)), 500
 
