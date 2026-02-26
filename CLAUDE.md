@@ -15,8 +15,9 @@ KAM Sentinel is a **portable cross-platform PC performance monitoring dashboard*
 # First-time setup: install deps and start server
 setup.bat
 
-# Run dev server directly (after setup)
+# Run dev server directly (after setup). Optional port, default 5000
 python server.py
+python server.py 8080
 
 # Run the full test suite
 python test_kam.py
@@ -25,7 +26,11 @@ python test_kam.py
 build_exe.bat
 ```
 
+**Port:** Server and launcher accept an optional port argument; default is 5000. Examples: `python server.py 8080`, `python launch.py 8080`, `./run.sh 8080`.
+
 **Virtual environment:** A `.venv` is present in the project root. Activate with `.venv\Scripts\activate` before running Python commands.
+
+**macOS / Linux:** Use `./setup.sh` once to install dependencies and create dirs, then `./run.sh` or `./run.sh [PORT]` or `python3 server.py [PORT]`. Default port 5000; open http://localhost:5000 (or your port) in the browser.
 
 **Test suite notes:**
 - Set `CI=true` to skip hardware-dependent checks (GPUtil, WMI, live psutil reads)

@@ -23,18 +23,18 @@ else:
 os.chdir(WORK_DIR)
 sys.path.insert(0, BASE_DIR)
 
-def open_browser():
+def open_browser(port=5000):
     time.sleep(2.5)
-    webbrowser.open('http://localhost:5000')
+    webbrowser.open(f'http://localhost:{port}')
 
-def watch_for_shutdown():
+def watch_for_shutdown(port=5000):
     """Poll /api/stats — if server stops responding, exit cleanly."""
     import urllib.request
     time.sleep(20)  # Give server plenty of time to start
     consecutive_failures = 0
     while True:
         try:
-            urllib.request.urlopen('http://localhost:5000/api/stats', timeout=5)
+            urllib.request.urlopen(f'http://localhost:{port}/api/stats', timeout=5)
             consecutive_failures = 0
         except Exception:
             consecutive_failures += 1
@@ -43,6 +43,16 @@ def watch_for_shutdown():
         time.sleep(3)
 
 if __name__ == '__main__':
+    port = 5000
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+            if port < 1 or port > 65535:
+                raise ValueError('port out of range')
+        except (ValueError, TypeError):
+            print('  Usage: python launch.py [PORT]  (default: 5000)')
+            sys.exit(1)
+
     print("\n  ╔══════════════════════════════════════╗")
     print("  ║        KAM SENTINEL  v1.4.2          ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
@@ -51,10 +61,10 @@ if __name__ == '__main__':
     print("  Close the browser tab to stop KAM Sentinel\n")
 
     # Open browser after short delay
-    threading.Thread(target=open_browser, daemon=True).start()
+    threading.Thread(target=open_browser, args=(port,), daemon=True).start()
 
     # Watch for shutdown signal
-    threading.Thread(target=watch_for_shutdown, daemon=True).start()
+    threading.Thread(target=watch_for_shutdown, args=(port,), daemon=True).start()
 
     # Handle Ctrl+C gracefully
     def _on_sigint(sig, frame):
@@ -63,6 +73,6 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, _on_sigint)
 
     from server import app
-    print("  Open browser -> http://localhost:5000")
+    print(f"  Open browser -> http://localhost:{port}")
     print("  Press Ctrl+C or close browser tab to stop\n")
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)

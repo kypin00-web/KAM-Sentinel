@@ -744,9 +744,18 @@ def api_autofix():
 
 
 if __name__ == '__main__':
+    port = 5000
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+            if port < 1 or port > 65535:
+                raise ValueError('port out of range')
+        except (ValueError, TypeError):
+            print('  Usage: python server.py [PORT]  (default: 5000)')
+            sys.exit(1)
     print(f'\n  KAM SENTINEL v{VER}  [{sys.platform}]')
-    print('  http://localhost:5000')
+    print(f'  http://localhost:{port}')
     if not _GPU: print('  [!] pip install GPUtil  for GPU stats')
     if sys.platform == 'win32' and not _WMI: print('  [!] pip install wmi pywin32  for full Windows data')
     print()
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
