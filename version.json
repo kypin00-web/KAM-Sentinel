@@ -1,6 +1,6 @@
 {
-  "version": "1.4.3",
-  "build": 7,
+  "version": "1.4.4",
+  "build": 8,
   "date": "2026-02-25",
   "channel": "stable",
   "changelog": "v1.4.0: Cross-platform (Windows/Mac/Linux), lean rewrite for lower monitoring overhead, privacy-safe telemetry, proactive error tracking, all Phase 1 bugs resolved.",
