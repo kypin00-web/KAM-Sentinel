@@ -1,9 +1,9 @@
 {
-  "version": "1.5.7",
-  "build": 17,
+  "version": "1.5.8",
+  "build": 18,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.7: Fix NSIS PATH on windows-latest — dynamically locate makensis.exe, fall back to Chocolatey install.",
+  "changelog": "v1.5.8: Fix NSIS step — choco install nsis unconditionally, call full path C:\\Program Files (x86)\\NSIS\\makensis.exe.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,8 +12,6 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: deploy.yml NSIS step now uses Get-ChildItem to locate makensis.exe under any 'C:\\Program Files*\\NSIS' path",
-    "FIX: Falls back to 'choco install nsis -y' if makensis.exe not found anywhere on the runner",
-    "REM: Removed hardcoded 'Add NSIS to PATH' step that assumed C:\\Program Files (x86)\\NSIS"
+    "FIX: deploy.yml NSIS step now runs 'choco install nsis -y' unconditionally, then calls full path 'C:\\Program Files (x86)\\NSIS\\makensis.exe' directly — avoids PATH refresh issue mid-script"
   ]
 }

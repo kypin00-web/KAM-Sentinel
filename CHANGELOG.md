@@ -2,6 +2,14 @@
 
 ---
 
+## v1.5.8 — 2026-02-27
+
+### CI Fix — NSIS makensis not found after Chocolatey install
+- **Root cause** — PowerShell doesn't refresh `$env:PATH` mid-script, so `makensis` isn't resolvable immediately after `choco install nsis -y`.
+- **Fix** — `choco install nsis -y` unconditionally, then invoke via hardcoded full path `& "C:\Program Files (x86)\NSIS\makensis.exe"`. Chocolatey always installs NSIS to that location, so the path is reliable.
+
+---
+
 ## v1.5.7 — 2026-02-27
 
 ### CI Fix — NSIS PATH on windows-latest

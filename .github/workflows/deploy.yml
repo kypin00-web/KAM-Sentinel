@@ -51,10 +51,9 @@ jobs:
 
     - name: Build NSIS installer
       run: |
-        $nsis = (Get-ChildItem "C:\Program Files*\NSIS\makensis.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-        if (-not $nsis) { choco install nsis -y; $nsis = "makensis" }
+        choco install nsis -y
         $ver = python -c "import json; print(json.load(open('version.json'))['version'])"
-        & $nsis /DVER=$ver scripts\installer.nsi
+        & "C:\Program Files (x86)\NSIS\makensis.exe" /DVER=$ver scripts\installer.nsi
 
     - name: Upload Windows EXE artifact
       uses: actions/upload-artifact@v4
