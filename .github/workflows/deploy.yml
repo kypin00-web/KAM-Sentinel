@@ -49,6 +49,9 @@ jobs:
           --hidden-import wmi `
           launch.py
 
+    - name: Add NSIS to PATH
+      run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
+
     - name: Build NSIS installer
       run: |
         $ver = python -c "import json; print(json.load(open('version.json'))['version'])"
