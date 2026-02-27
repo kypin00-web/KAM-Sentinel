@@ -2,6 +2,19 @@
 
 ---
 
+## v1.5.6 — 2026-02-27
+
+### BugWatcher — GitHub Actions CI Monitoring
+- **CI failure polling** — BugWatcher now polls GitHub Actions API every 5 minutes for failed workflow runs. Requires `GITHUB_TOKEN` env var (auto-available in CI; set locally for dev use).
+- **Auto-diagnosis pipeline** — `_fetch_failed_ci_runs`, `_fetch_job_logs`, `_diagnose_ci_failure` fetch and pattern-match failed job logs against `CI_KNOWN_ISSUES`.
+- **5 CI known issue patterns** — NSIS not on PATH (regression detection), missing Python deps, test suite failures, PyInstaller build errors, Actions checkout failures.
+- **Regression detection** — fixes already applied in the codebase (e.g. NSIS PATH) are flagged as `regression_detected` with severity:high if they fire again.
+- **`logs/ci_watcher.jsonl`** — dedicated CI event log (diagnosed, escalated, regression_detected, undiagnosed, no_logs).
+- **`--ci` flag** — run a single CI poll cycle and exit (useful for manual diagnosis).
+- **Daily summary** — now includes `ci.diagnosed`, `ci.regressions`, `ci.undiagnosed` counts.
+
+---
+
 ## v1.4.0 — 2026-02-25 (Phase 1 Complete)
 
 ### Critical Bug Fixes

@@ -1,9 +1,9 @@
 {
-  "version": "1.5.5",
-  "build": 15,
+  "version": "1.5.6",
+  "build": 16,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.5: NSIS installer — proper Windows setup wizard, Start Menu + Desktop shortcuts, Add/Remove Programs, uninstaller. Fixes SmartScreen block on raw .exe downloads.",
+  "changelog": "v1.5.6: BugWatcher CI monitoring — GitHub Actions integration, auto-diagnosis of CI failures, regression detection, ci_watcher.jsonl log.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,11 +12,12 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: NSIS installer (KAM_Sentinel_Setup.exe) — installs to Program Files, creates Start Menu + Desktop shortcuts, registers in Add/Remove Programs, includes uninstaller",
-    "NEW: scripts/installer.nsi — NSIS script, version passed dynamically via /DVER= flag",
-    "FIX: Windows SmartScreen — installer EXE from a known URL is treated as more trusted than raw PyInstaller binary",
-    "UPD: docs/index.html Windows download button now points to KAM_Sentinel_Setup.exe",
-    "UPD: version.json windows URL updated to Setup installer; windows_raw kept for advanced users",
-    "UPD: deploy.yml builds installer after PyInstaller, uploads both to GitHub Release"
+    "NEW: BugWatcher GitHub Actions CI monitoring — polls Actions API every 5 min for failed runs",
+    "NEW: _fetch_failed_ci_runs, _fetch_job_logs, _diagnose_ci_failure — auto-diagnosis pipeline",
+    "NEW: CI_KNOWN_ISSUES — 5 patterns: NSIS PATH regression, missing deps, test failures, PyInstaller errors, checkout failures",
+    "NEW: ci_watcher.jsonl — dedicated log for all CI events (diagnosed, escalated, regression_detected, undiagnosed)",
+    "NEW: --ci flag for single CI poll cycle (useful for manual diagnosis runs)",
+    "UPD: Daily summary now includes ci.diagnosed / ci.regressions / ci.undiagnosed counts",
+    "UPD: GITHUB_TOKEN read from environment (auto-available in GitHub Actions CI)"
   ]
 }
