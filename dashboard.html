@@ -112,6 +112,7 @@ header {
   border-radius:8px;
   padding:10px 14px;
   min-width:180px;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: 0 0 20px rgba(0,255,136,.15), 0 4px 24px rgba(0,0,0,.6);
   font-family:'Share Tech Mono',monospace;
@@ -171,7 +172,7 @@ header {
 /* ── FEEDBACK MODAL ──────────────────────────────────────────────────────── */
 .feedback-modal {
   display:none; position:fixed; inset:0; z-index:10000;
-  background: rgba(0,0,0,.75); backdrop-filter:blur(6px);
+  background: rgba(0,0,0,.75); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   align-items:center; justify-content:center;
 }
 .feedback-modal.open { display:flex; }
@@ -227,7 +228,7 @@ header {
 .fb-submit:disabled { opacity:.4; cursor:not-allowed; }
 .diag-modal {
   display:none; position:fixed; inset:0; z-index:10000;
-  background: rgba(0,0,0,.7); backdrop-filter:blur(4px);
+  background: rgba(0,0,0,.7); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
   align-items:center; justify-content:center;
 }
 .diag-modal.open { display:flex; }
@@ -305,6 +306,7 @@ main { padding:20px 24px; max-width:1600px; margin:0 auto; }
   border-radius:8px; padding:20px;
   position:relative; overflow:hidden;
   transition:border-color .3s, box-shadow .3s, transform .2s;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .stat-card:hover { 
@@ -367,6 +369,7 @@ main { padding:20px 24px; max-width:1600px; margin:0 auto; }
   background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
   border:1px solid var(--border);
   border-radius:8px; padding:20px;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   transition: border-color .3s, box-shadow .3s;
 }
@@ -453,7 +456,7 @@ footer {
 .warn-clear-btn:hover { opacity:1; }
 
 /* ── SETTINGS MODAL ──────────────────────────────────────────────────────── */
-.modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.75); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
+.modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.75); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
 .modal-overlay.open { display:flex; }
 .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:4px; width:680px; max-width:95vw; max-height:85vh; overflow-y:auto; padding:28px; box-shadow:0 0 60px rgba(0,0,0,.6); }
 .modal-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
@@ -489,7 +492,7 @@ footer {
   .charts-row { grid-template-columns:1fr; }
 }
 /* ── WHAT'S NEW WALKTHROUGH ───────────────────────────────────────────────── */
-#wn-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
+#wn-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
 #wn-overlay.open { display:flex; }
 #wn-box { background:linear-gradient(135deg,var(--bg2),var(--bg3)); border:1px solid var(--border3); border-radius:6px; width:520px; max-width:94vw; padding:32px; box-shadow:0 0 80px rgba(0,170,255,.12); position:relative; }
 #wn-badge { font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:4px; color:var(--cyan); margin-bottom:10px; }

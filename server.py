@@ -7,7 +7,7 @@ All hardware I/O in background threads — server never blocks on sensors
 from flask import Flask, jsonify, send_from_directory, request
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re, struct, math
+import psutil, os, json, time, platform, datetime, threading, sys, subprocess, uuid, re, struct, math, hashlib
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 if getattr(sys, 'frozen', False):
@@ -40,6 +40,35 @@ def _guard():
     if ip in ('127.0.0.1', '::1'): return
     if _rate_limited(ip):  return jsonify(error='rate limited'), 429
     if request.method == 'POST': return jsonify(error='forbidden'), 403
+
+# ── Feedback rate limiting & dedup ────────────────────────────────────────────
+_fb_rl, _fb_dedup, _fb_lock = {}, {}, threading.Lock()
+FB_RL_WIN, FB_RL_MAX = 60.0, 5   # 5 submissions per 60 s per IP
+FB_DEDUP_WIN = 3600.0             # same message rejected within 1 hour
+
+def _fb_rate_limited(ip):
+    """Return True if this IP has exceeded the feedback submission rate."""
+    now = time.time()
+    with _fb_lock:
+        w = [t for t in _fb_rl.get(ip, []) if now - t < FB_RL_WIN]
+        if len(w) >= FB_RL_MAX: return True
+        w.append(now); _fb_rl[ip] = w
+    return False
+
+def _fb_duplicate(cat, msg):
+    """Return True if an identical (category + message) was submitted within FB_DEDUP_WIN."""
+    key = hashlib.md5(f"{cat}:{msg.strip().lower()}".encode()).hexdigest()
+    now = time.time()
+    with _fb_lock:
+        if key in _fb_dedup and now - _fb_dedup[key] < FB_DEDUP_WIN:
+            return True
+        _fb_dedup[key] = now
+        # prune stale entries to prevent unbounded growth
+        if len(_fb_dedup) > 1000:
+            cut = now - FB_DEDUP_WIN
+            for k in [k for k, v in _fb_dedup.items() if v < cut]:
+                del _fb_dedup[k]
+    return False
 
 # ── Input validation ──────────────────────────────────────────────────────────
 ALLOWED_THRESHOLD_KEYS = {'cpu','gpu','ram','voltage','network'}
@@ -92,7 +121,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.2'
+VER               = '1.5.3'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -902,6 +931,12 @@ def api_feedback():
     if cat not in ('bug','feature','performance','general'): cat = 'general'
     msg = str(d.get('message',''))[:500].replace('\n',' ').replace('\r',' ').replace('\x00','')
     if not msg.strip(): return jsonify(error='No message'), 400
+
+    ip = request.remote_addr or '127.0.0.1'
+    if _fb_rate_limited(ip):
+        return jsonify(error='Too many feedback submissions — please wait a minute.'), 429
+    if _fb_duplicate(cat, msg):
+        return jsonify(error='Duplicate feedback — this report was already received.'), 429
 
     pri, act = 'normal', None
     kw = msg.lower()

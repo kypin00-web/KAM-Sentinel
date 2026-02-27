@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What This Project Is
 KAM Sentinel is a **portable cross-platform PC performance monitoring dashboard** built for gaming and power users. It runs as a single `.exe`/binary (no Python required on target machines), opens a local browser dashboard, and monitors CPU, GPU, RAM, temperature, voltage, and network in real time with smart hardware-aware warnings.
 
-**Current build: Phase 1 — Sentinel Edition (v1.4.0)** — supports Windows, macOS, Linux
+**Current build: Phase 1 — Sentinel Edition (v1.5.3)** — supports Windows, macOS, Linux
 
 ---
 
@@ -134,6 +134,70 @@ Warnings are dismissible banners (yellow=warning, red=critical). Auto re-enable 
 - `dashboard.html` and `thresholds.py` are bundled via `--add-data` and accessed at runtime from `sys._MEIPASS`
 - `subprocess.Popen` is monkey-patched at startup to add `CREATE_NO_WINDOW` when running frozen — prevents CMD window flash from nvidia-smi
 - `backups/`, `logs/`, `profiles/`, and `version.json` are created next to the `.exe` on first launch (not inside the bundle)
+
+---
+
+## Session Startup Ritual (every session)
+
+Every Claude Code session on this repo MUST start with these steps before touching any code:
+
+1. Run `git fetch --all` and `git log --all --oneline -10` — confirm branch/commit state
+2. Run `python test_kam.py` — confirm all tests passing (currently 79/79)
+3. Read `logs/feedback/` and `logs/bugs/` — print standup summary:
+   - NEW feedback or bug reports since last session
+   - Open/unresolved bugs
+   - Feature requests not yet triaged
+4. Check `logs/bugwatcher_daily/` for latest daily report
+5. Report any escalated bugs (`logs/bugs/escalated.jsonl`) before starting new work
+
+---
+
+## Launching the App
+
+**Windows (end users):**
+- Double-click `launch_kam.bat` in the project folder
+- Then open browser to: http://localhost:5000
+
+**Developers:**
+```bat
+python server.py           # default port 5000
+python server.py 8080      # custom port
+```
+
+---
+
+## Hosting
+
+- **GitHub Pages:** `docs/` folder, auto-deployed via `.github/workflows/pages.yml` on every push to `main`
+- **URL:** https://kypin00-web.github.io/KAM-Sentinel
+- **version.json:** `docs/version.json` (workflow copies root `version.json` → `docs/` on deploy)
+- **Railway:** NOT set up yet — add when a backend feedback endpoint is needed
+- **UPDATE_CHECK_URL** in `server.py` points to raw GitHub (already working); GitHub Pages URL is the public-facing landing page
+
+---
+
+## BugWatcher
+
+Background auto-fix daemon — runs silently, only surfaces escalated items.
+
+- **Script:** `scripts/bugwatcher.py`
+- **Start:** `python scripts/bugwatcher.py` (foreground) or `python scripts/bugwatcher.py --once` (single cycle / CI)
+- **Poll interval:** 60 seconds
+- **Logs all actions:** `logs/bugwatcher.jsonl` (timestamp, bug_id, action, result, tests_passing)
+- **Daily summary:** `logs/bugwatcher_daily/YYYY-MM-DD.json` (generated at 23:55 local time)
+- **Escalated bugs:** `logs/bugs/escalated.jsonl` — ONLY these need human review
+- **Known issue patterns** live in `KNOWN_ISSUES` dict inside the script; expand as new patterns emerge
+- **Criticality:** critical bugs → test suite runs after auto-resolve; high → fix within 3 cycles; medium/low → daily batch
+
+---
+
+## Feedback Loop
+
+- **Rate limiting:** 5 submissions per 60s per IP (`FB_RL_WIN`, `FB_RL_MAX` in `server.py`)
+- **Dedup:** same category + message hash rejected within 1 hour (`FB_DEDUP_WIN = 3600`)
+- **Feature requests** → `logs/features/backlog.jsonl` (triaged by BugWatcher or manually)
+- **Bugs** → `logs/feedback/bug.jsonl` (auto-triaged by BugWatcher)
+- Rate limit state: `_fb_rl`, `_fb_dedup`, `_fb_lock` — separate from the global `_rl` / `_rl_lock`
 
 ---
 

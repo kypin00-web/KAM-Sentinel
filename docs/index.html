@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KAM Sentinel — PC Performance Monitor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #07090f;
+      --bg2:    #0d1117;
+      --bg3:    #111820;
+      --border: rgba(0,255,136,.18);
+      --green:  #00ff88;
+      --cyan:   #00aaff;
+      --yellow: #ffd700;
+      --dim:    #6b7280;
+      --text:   #e2e8f0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── NAV ── */
+    nav {
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-k { color: var(--green); font-weight: 900; font-size: 1.3rem; font-family: monospace; }
+    .logo-rest { color: var(--text); font-weight: 700; font-size: 1.1rem; letter-spacing: 2px; }
+    .nav-tag {
+      margin-left: auto;
+      font-size: .7rem;
+      letter-spacing: 2px;
+      color: var(--dim);
+      font-family: monospace;
+      border: 1px solid var(--border);
+      padding: 3px 10px;
+      border-radius: 3px;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 24px 60px;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0,255,136,.06) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 80% 60%, rgba(0,170,255,.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-block;
+      font-family: monospace;
+      font-size: .68rem;
+      letter-spacing: 3px;
+      color: var(--green);
+      border: 1px solid rgba(0,255,136,.3);
+      padding: 4px 14px;
+      border-radius: 2px;
+      margin-bottom: 28px;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    h1 .k { color: var(--green); }
+    .tagline {
+      font-size: clamp(.95rem, 2vw, 1.15rem);
+      color: var(--dim);
+      max-width: 520px;
+      line-height: 1.65;
+      margin-bottom: 44px;
+    }
+
+    /* ── DOWNLOAD BTN ── */
+    .dl-group { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: .95rem;
+      letter-spacing: .5px;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+      cursor: pointer;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary {
+      background: var(--green);
+      color: #000;
+      box-shadow: 0 0 24px rgba(0,255,136,.35);
+    }
+    .btn-primary:hover { box-shadow: 0 0 40px rgba(0,255,136,.55); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--cyan);
+      border: 1px solid rgba(0,170,255,.4);
+    }
+    .btn-secondary:hover { border-color: var(--cyan); box-shadow: 0 0 16px rgba(0,170,255,.2); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--dim);
+      border: 1px solid rgba(255,255,255,.1);
+      font-size: .85rem;
+      padding: 12px 20px;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
+
+    /* ── FEATURES ── */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      width: 100%;
+      margin: 60px auto 0;
+      padding: 0 24px;
+    }
+    .feat {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: left;
+    }
+    .feat-icon { font-size: 1.4rem; margin-bottom: 10px; }
+    .feat-title { font-family: monospace; font-size: .75rem; letter-spacing: 2px; color: var(--cyan); margin-bottom: 6px; }
+    .feat-desc { font-size: .82rem; color: var(--dim); line-height: 1.5; }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 24px 32px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: .78rem;
+      color: var(--dim);
+    }
+    footer a { color: var(--dim); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    .footer-links { display: flex; gap: 20px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo-k">K</span><span class="logo-rest">AM SENTINEL</span>
+  <span class="nav-tag">v1.5.2 STABLE</span>
+</nav>
+
+<main class="hero">
+  <div class="badge">OPEN SOURCE · PORTABLE · NO PYTHON REQUIRED</div>
+  <h1><span class="k">K</span>AM Sentinel</h1>
+  <p class="tagline">
+    Real-time PC performance dashboard for gamers and power users.
+    CPU, GPU, RAM, temps, voltage, FPS, and smart hardware-aware warnings —
+    all in a single portable .exe.
+  </p>
+  <div class="dl-group">
+    <a class="btn btn-primary"
+       href="https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe">
+      ⬇ Download for Windows
+    </a>
+    <a class="btn btn-secondary"
+       href="https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac">
+      ⬇ Download for macOS
+    </a>
+    <a class="btn btn-ghost"
+       href="https://github.com/kypin00-web/KAM-Sentinel/releases">
+      All Releases
+    </a>
+  </div>
+
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon">🌡️</div>
+      <div class="feat-title">TEMPS &amp; VOLTAGE</div>
+      <div class="feat-desc">CPU and GPU temperature with model-specific TJ-max awareness. Voltage monitoring on Windows.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🎮</div>
+      <div class="feat-title">FPS COUNTER</div>
+      <div class="feat-desc">Live FPS from RTSS shared memory. 1% low, 60-frame rolling history, color-coded status.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⚡</div>
+      <div class="feat-title">FORGE &amp; BENCHMARKS</div>
+      <div class="feat-desc">Fan curve presets and pure-Python CPU/RAM/disk benchmarks. No external tools needed.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🌐</div>
+      <div class="feat-title">CROSS-PLATFORM</div>
+      <div class="feat-desc">Windows, macOS, and Linux. Single portable binary — no Python install required on target.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔔</div>
+      <div class="feat-title">SMART WARNINGS</div>
+      <div class="feat-desc">7 warning types with hardware-aware thresholds. Sustained load detection. All customizable.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">LIVE CHARTS</div>
+      <div class="feat-desc">60-point rolling history for CPU, GPU, RAM, and network. Sub-2ms hot path on every poll.</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>KAM Sentinel — Open Source PC Performance Monitor</span>
+  <div class="footer-links">
+    <a href="https://github.com/kypin00-web/KAM-Sentinel">GitHub</a>
+    <a href="https://github.com/kypin00-web/KAM-Sentinel/releases">Releases</a>
+    <a href="https://github.com/kypin00-web/KAM-Sentinel/issues">Issues</a>
+  </div>
+</footer>
+
+</body>
+</html>
