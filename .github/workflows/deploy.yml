@@ -49,11 +49,23 @@ jobs:
           --hidden-import wmi `
           launch.py
 
+    - name: Build NSIS installer
+      run: |
+        $ver = python -c "import json; print(json.load(open('version.json'))['version'])"
+        makensis /DVER=$ver scripts\installer.nsi
+
     - name: Upload Windows EXE artifact
       uses: actions/upload-artifact@v4
       with:
         name: KAM_Sentinel_Windows-${{ github.sha }}
         path: dist/KAM_Sentinel_Windows.exe
+        retention-days: 30
+
+    - name: Upload Windows installer artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: KAM_Sentinel_Setup-${{ github.sha }}
+        path: dist/KAM_Sentinel_Setup.exe
         retention-days: 30
 
   # ─── macOS build ──────────────────────────────────────────────────────────────
@@ -110,10 +122,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download Windows artifact
+    - name: Download Windows EXE artifact
       uses: actions/download-artifact@v4
       with:
         name: KAM_Sentinel_Windows-${{ github.sha }}
+        path: dist/
+
+    - name: Download Windows installer artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: KAM_Sentinel_Setup-${{ github.sha }}
         path: dist/
 
     - name: Download macOS artifact
@@ -132,6 +150,7 @@ jobs:
         name: "KAM Sentinel v${{ steps.version.outputs.version }}"
         body_path: CHANGELOG.md
         files: |
+          dist/KAM_Sentinel_Setup.exe
           dist/KAM_Sentinel_Windows.exe
           dist/KAM_Sentinel_Mac
           version.json

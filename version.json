@@ -1,21 +1,22 @@
 {
-  "version": "1.5.4",
-  "build": 14,
+  "version": "1.5.5",
+  "build": 15,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.4: KAM Sentinel shield logo — SVG asset, inline dashboard header, GitHub Pages nav, ICO taskbar icon for .exe.",
+  "changelog": "v1.5.5: NSIS installer — proper Windows setup wizard, Start Menu + Desktop shortcuts, Add/Remove Programs, uninstaller. Fixes SmartScreen block on raw .exe downloads.",
   "download": {
-    "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
+    "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
+    "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
     "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
     "release_page": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest"
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: assets/kam_logo.svg — cyan/blue shield logo with K letterform",
-    "NEW: assets/icon.ico — 6-size ICO (16/32/48/64/128/256px) for .exe taskbar",
-    "NEW: Dashboard header updated to new shield SVG (namespaced IDs, inline)",
-    "NEW: docs/index.html nav updated to shield logo image",
-    "FIX: build_exe.bat and deploy.yml updated to use assets/icon.ico",
-    "FIX: docs version tag updated to v1.5.4"
+    "NEW: NSIS installer (KAM_Sentinel_Setup.exe) — installs to Program Files, creates Start Menu + Desktop shortcuts, registers in Add/Remove Programs, includes uninstaller",
+    "NEW: scripts/installer.nsi — NSIS script, version passed dynamically via /DVER= flag",
+    "FIX: Windows SmartScreen — installer EXE from a known URL is treated as more trusted than raw PyInstaller binary",
+    "UPD: docs/index.html Windows download button now points to KAM_Sentinel_Setup.exe",
+    "UPD: version.json windows URL updated to Setup installer; windows_raw kept for advanced users",
+    "UPD: deploy.yml builds installer after PyInstaller, uploads both to GitHub Release"
   ]
 }
