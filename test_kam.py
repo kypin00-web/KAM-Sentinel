@@ -955,7 +955,7 @@ try:
     import re
     # Check each line that contains a real open() call (not _orig_popen, OpenKey, etc.)
     open_lines = [l.strip() for l in src.splitlines() if re.search(r'\bopen\(', l)]
-    missing_enc = [l for l in open_lines if 'encoding' not in l]
+    missing_enc = [l for l in open_lines if 'encoding' not in l and not re.search(r"""open\([^,)]*,\s*['"][^'"]*[wra]b[^'"]*['"]""", l)]
     if not missing_enc:
         ok(f"All {len(open_lines)} open() call line(s) specify encoding='utf-8'")
     else:
