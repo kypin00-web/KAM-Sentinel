@@ -49,13 +49,12 @@ jobs:
           --hidden-import wmi `
           launch.py
 
-    - name: Add NSIS to PATH
-      run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
-
     - name: Build NSIS installer
       run: |
+        $nsis = (Get-ChildItem "C:\Program Files*\NSIS\makensis.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if (-not $nsis) { choco install nsis -y; $nsis = "makensis" }
         $ver = python -c "import json; print(json.load(open('version.json'))['version'])"
-        makensis /DVER=$ver scripts\installer.nsi
+        & $nsis /DVER=$ver scripts\installer.nsi
 
     - name: Upload Windows EXE artifact
       uses: actions/upload-artifact@v4

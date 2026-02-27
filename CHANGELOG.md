@@ -2,6 +2,15 @@
 
 ---
 
+## v1.5.7 — 2026-02-27
+
+### CI Fix — NSIS PATH on windows-latest
+- **Dynamic makensis discovery** — `Get-ChildItem "C:\Program Files*\NSIS\makensis.exe"` finds the binary regardless of whether the runner installs to `Program Files` or `Program Files (x86)`.
+- **Chocolatey fallback** — if `makensis.exe` is not found anywhere, `choco install nsis -y` runs automatically and `makensis` is called via PATH.
+- **Removed** hardcoded "Add NSIS to PATH" step that assumed `C:\Program Files (x86)\NSIS`.
+
+---
+
 ## v1.5.6 — 2026-02-27
 
 ### BugWatcher — GitHub Actions CI Monitoring
