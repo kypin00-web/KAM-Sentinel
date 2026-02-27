@@ -4,7 +4,7 @@ color 0B
 
 echo.
 echo  ============================================
-echo   KAM Sentinel v1.5.2 - Building Portable EXE
+echo   KAM Sentinel v1.5.4 - Building Portable EXE
 echo  ============================================
 echo.
 
@@ -24,10 +24,10 @@ python -m PyInstaller ^
   --name "KAM_Sentinel" ^
   --onefile ^
   --noconsole ^
-  --icon "kam_sentinel.ico" ^
+  --icon "assets/icon.ico" ^
   --add-data "dashboard.html;." ^
   --add-data "thresholds.py;." ^
-  --add-data "kam_sentinel.ico;." ^
+  --add-data "assets/icon.ico;assets" ^
   --hidden-import flask ^
   --hidden-import psutil ^
   --hidden-import wmi ^

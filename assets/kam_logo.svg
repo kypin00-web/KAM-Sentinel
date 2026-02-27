@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shieldGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1f2d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#081418;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="kGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00a8cc;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0" />
+      <stop offset="50%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00d4ff;stop-opacity:0" />
+    </linearGradient>
+  </defs>
+  <path d="M50 8 L88 22 L88 55 Q88 78 50 94 Q12 78 12 55 L12 22 Z"
+        fill="url(#shieldGrad)" stroke="#00d4ff" stroke-width="1.5" filter="url(#shieldGlow)"/>
+  <path d="M50 14 L83 26 L83 55 Q83 74 50 88 Q17 74 17 55 L17 26 Z"
+        fill="none" stroke="#00d4ff" stroke-width="0.4" stroke-opacity="0.3"/>
+  <path d="M50 8 L88 22" fill="none" stroke="url(#edgeGrad)" stroke-width="0.8" stroke-opacity="0.6"/>
+  <path d="M50 8 L12 22" fill="none" stroke="url(#edgeGrad)" stroke-width="0.8" stroke-opacity="0.6"/>
+  <g filter="url(#glow)">
+    <rect x="30" y="27" width="10" height="46" fill="url(#kGrad)" rx="1"/>
+    <polygon points="40,50 40,43 65,27 65,35" fill="url(#kGrad)"/>
+    <polygon points="40,50 40,57 65,73 65,65" fill="url(#kGrad)"/>
+  </g>
+  <circle cx="12" cy="22" r="1.5" fill="#00d4ff" opacity="0.7"/>
+  <circle cx="88" cy="22" r="1.5" fill="#00d4ff" opacity="0.7"/>
+  <circle cx="50" cy="94" r="1.5" fill="#00d4ff" opacity="0.9"/>
+</svg>

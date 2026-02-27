@@ -121,7 +121,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.3'
+VER               = '1.5.4'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -856,6 +856,10 @@ atexit.register(_flush_log); atexit.register(_flush_errs)
 # ═══════════════════════════════════════════════════════════════════════════════
 @app.route('/')
 def index():        return send_from_directory(ASSET_DIR, 'dashboard.html')
+
+@app.route('/assets/<path:filename>')
+def serve_asset(filename):
+    return send_from_directory(os.path.join(ASSET_DIR, 'assets'), filename)
 
 @app.route('/api/system')
 def api_system():   return jsonify(_sysinfo)

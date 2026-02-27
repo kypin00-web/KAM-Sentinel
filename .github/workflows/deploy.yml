@@ -39,8 +39,10 @@ jobs:
     - name: Build Windows EXE
       run: |
         python -m PyInstaller --name "KAM_Sentinel_Windows" --onefile --noconsole `
+          --icon "assets/icon.ico" `
           --add-data "dashboard.html;." `
           --add-data "thresholds.py;." `
+          --add-data "assets/icon.ico;assets" `
           --hidden-import flask `
           --hidden-import psutil `
           --hidden-import GPUtil `

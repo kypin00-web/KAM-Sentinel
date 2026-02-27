@@ -26,6 +26,9 @@ jobs:
       - name: Sync root version.json into docs/
         run: cp version.json docs/version.json
 
+      - name: Sync assets/ into docs/assets/
+        run: cp -r assets/ docs/assets/
+
       - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
