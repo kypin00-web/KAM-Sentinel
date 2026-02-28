@@ -335,15 +335,15 @@ header {
 #kris-msg-bubble {
   position:fixed; bottom:28px; right:28px; z-index:10003;
   background:linear-gradient(135deg,rgba(10,14,23,.97),rgba(15,21,32,.97));
-  border:1.5px solid #ff6b9d; border-radius:16px; padding:20px 22px; max-width:320px;
+  border:1.5px solid #ff6b9d; border-radius:16px; padding:22px 26px; max-width:380px;
   box-shadow:0 0 40px rgba(255,107,157,.3); pointer-events:none;
   opacity:0; transform:translateY(16px);
   transition:opacity .45s ease, transform .45s cubic-bezier(.34,1.56,.64,1);
 }
 #kris-msg-bubble.show { opacity:1; transform:translateY(0); }
 .kris-from { font-family:'Share Tech Mono',monospace; font-size:.62rem; letter-spacing:2px;
-  color:#ff6b9d; margin-bottom:8px; }
-.kris-text { font-size:.9rem; color:#e8e8e8; line-height:1.6; font-style:italic; }
+  color:#ff6b9d; margin-bottom:10px; }
+.kris-text { font-size:.9rem; color:#e8e8e8; line-height:1.65; white-space:pre-line; }
 
 /* ── WES MODE — HEARING CALIBRATION MODAL ───────────────────────────────── */
 .wes-calib-modal {
@@ -2142,7 +2142,16 @@ async function wesOpenBluetooth() {
 function wesClose() { document.getElementById('wes-calib-modal').classList.remove('open'); }
 
 // ── Wes Identity Check ────────────────────────────────────────────────────
-const _KRIS_MSG = "I might not always be right, but I\u2019m damn good at some things \u2014 love you dad";
+const _KRIS_MSG =
+  "Mr. Johnson, I have a message for you from Kris:\n\n" +
+  "\u201CI finally did something you can brag about at golf.\nLove you dad. \u2014 Kris \ud83d\ude04\u201D\n\n" +
+  "He built all of this. And he built it so you could\nuse it easily. Pretty good kid, right? \ud83d\udc95\n\n" +
+  "I\u2019m Eve, and I\u2019ll be here anytime you need me.";
+const _KRIS_MSG_SPEAK =
+  "Mr. Johnson, I have a message for you from Kris. " +
+  "I finally did something you can brag about at golf. Love you dad. " +
+  "He built all of this. And he built it so you could use it easily. Pretty good kid, right? " +
+  "I'm Eve, and I'll be here anytime you need me.";
 
 function wesCheckIdentity() {
   if (localStorage.getItem('wes_identity')) return; // already answered this session
@@ -2179,12 +2188,12 @@ function wesConfirmNo() {
 function _wesDeliverKrisMsg() {
   document.getElementById('kris-msg-text').textContent = _KRIS_MSG;
   document.getElementById('kris-msg-bubble').classList.add('show');
-  // Ask Eve to speak it at a warm mid-range pitch
+  // Ask Eve to speak the clean version (no emoji) at a warm mid-range pitch
   fetch('/api/eve/calibrate', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action:'speak', message: _KRIS_MSG, hz: 3000})
+    body: JSON.stringify({action:'speak', message: _KRIS_MSG_SPEAK, hz: 3000})
   }).catch(() => {});
-  setTimeout(() => document.getElementById('kris-msg-bubble').classList.remove('show'), 9000);
+  setTimeout(() => document.getElementById('kris-msg-bubble').classList.remove('show'), 18000);
 }
 
 function _wesAutoLaunchCalib() {
