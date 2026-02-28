@@ -785,6 +785,7 @@ footer {
     </div>
     <button class="settings-btn" id="overlay-btn" onclick="toggleOverlay()">⊞ OVERLAY</button>
     <button class="settings-btn" id="diag-test-btn" onclick="toggleDiagTestMode()" title="Simulate N/A states for testing">🧪 TEST MODE</button>
+    <button class="settings-btn" id="eve-voice-btn" onclick="eveVoiceToggle()" title="Eve voice on — click to mute">🔊</button>
     <button class="settings-btn" id="wes-mode-btn" onclick="wesToggle()" title="Wes Mode — hearing frequency calibration">🎵 WES MODE</button>
     <button class="settings-btn" onclick="openFeedback()">💬 FEEDBACK</button>
     <button class="settings-btn" onclick="openSettings()">⚙ THRESHOLDS</button>
@@ -2140,6 +2141,51 @@ async function wesOpenBluetooth() {
 }
 
 function wesClose() { document.getElementById('wes-calib-modal').classList.remove('open'); }
+
+// ── Eve Voice Toggle ──────────────────────────────────────────────────────
+let _eveVoiceOn = true;
+
+function _eveVoiceUpdateBtn() {
+  const btn = document.getElementById('eve-voice-btn');
+  if (!btn) return;
+  btn.textContent = _eveVoiceOn ? '\ud83d\udd0a' : '\ud83d\udd07';
+  btn.title = _eveVoiceOn
+    ? 'Eve voice on \u2014 click to mute'
+    : 'Eve voice muted \u2014 click to unmute';
+}
+
+function eveVoiceToggle() {
+  // Wes Mode accessibility override — voice is always on for Wes
+  if (localStorage.getItem('wes_identity') === 'yes') return;
+  const newState = !_eveVoiceOn;
+  fetch('/api/eve/voice', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({eve_voice: newState})
+  }).then(r => r.json()).then(d => {
+    _eveVoiceOn = d.eve_voice;
+    _eveVoiceUpdateBtn();
+  }).catch(() => {
+    // Optimistic update if server unreachable
+    _eveVoiceOn = newState;
+    _eveVoiceUpdateBtn();
+  });
+}
+
+// Load voice state from server on init
+(function _eveVoiceInit() {
+  fetch('/api/eve/voice').then(r => r.json()).then(d => {
+    _eveVoiceOn = d.eve_voice !== false;
+    _eveVoiceUpdateBtn();
+    // Wes Mode: disable button — voice is always on
+    if (localStorage.getItem('wes_identity') === 'yes') {
+      const btn = document.getElementById('eve-voice-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.title = 'Eve voice is always on in Wes Mode \u2014 accessibility override';
+      }
+    }
+  }).catch(() => { _eveVoiceUpdateBtn(); }); // default ON on error
+})();
 
 // ── Wes Identity Check ────────────────────────────────────────────────────
 const _KRIS_MSG =

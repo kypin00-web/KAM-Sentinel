@@ -1,9 +1,9 @@
 {
-  "version": "1.5.14",
-  "build": 24,
+  "version": "1.5.15",
+  "build": 25,
   "date": "2026-02-28",
   "channel": "stable",
-  "changelog": "v1.5.14: Critical fix — installer writes user data to %APPDATA%\\KAM Sentinel, not Program Files.",
+  "changelog": "v1.5.15: Eve Voice Toggle — mute/unmute button in header with Wes Mode accessibility override.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,7 +12,11 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: DATA_DIR now uses %APPDATA%\\KAM Sentinel when running as a frozen exe — eliminates PermissionError crash on launch for users installed to Program Files",
-    "FIX: launch.py version string updated to v1.5.14"
+    "NEW: Eve Voice Toggle — 🔊/🔇 button in dashboard header mutes/unmutes Eve's pyttsx3 voice",
+    "NEW: Mute confirmation — Eve says goodbye before going silent, says hello on unmute",
+    "NEW: GET /api/eve/voice + POST /api/eve/voice — persist toggle to profiles/accessibility.json",
+    "NEW: _eve_voice_enabled() helper — centralised mute check in server.py and bugwatcher.py",
+    "NEW: Wes Mode accessibility override — voice toggle is ignored (always on) for Wes",
+    "NEW: force=True parameter on _eve_speak_async / eve_speak — lets mute message play through"
   ]
 }

@@ -127,7 +127,7 @@ ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 ACCESSIBILITY_FILE = os.path.join(PROF_DIR, 'accessibility.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.14'
+VER               = '1.5.15'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1139,9 +1139,27 @@ def _eve_sapi_pitch(hz):
     return max(-10, min(10, round((hz - 5000) / 300)))
 
 
-def _eve_speak_async(message, hz=None):
-    """Fire-and-forget TTS call at optional calibrated Hz. Silenced in CI."""
+def _eve_voice_enabled():
+    """Return True if Eve's voice is on (default). Wes Mode always returns True."""
+    try:
+        if os.path.exists(ACCESSIBILITY_FILE):
+            prof = json.load(open(ACCESSIBILITY_FILE, encoding='utf-8'))
+            # Wes Mode (calibrated profile) is always audible regardless of toggle
+            if prof.get('calibrated') or prof.get('preferred_hz') is not None:
+                return True
+            return bool(prof.get('eve_voice', True))
+    except Exception:
+        pass
+    return True
+
+
+def _eve_speak_async(message, hz=None, force=False):
+    """Fire-and-forget TTS call at optional calibrated Hz. Silenced in CI.
+    force=True bypasses the eve_voice mute flag (used for the mute confirmation message).
+    """
     if os.environ.get('CI'):
+        return
+    if not force and not _eve_voice_enabled():
         return
     def _speak():
         try:
@@ -1159,6 +1177,45 @@ def _eve_speak_async(message, hz=None):
         except Exception:
             pass
     threading.Thread(target=_speak, daemon=True).start()
+
+
+@app.route('/api/eve/voice')
+def api_eve_voice_get():
+    """Return current eve_voice setting (default True)."""
+    try:
+        if os.path.exists(ACCESSIBILITY_FILE):
+            prof = json.load(open(ACCESSIBILITY_FILE, encoding='utf-8'))
+            return jsonify(eve_voice=bool(prof.get('eve_voice', True)))
+    except Exception:
+        pass
+    return jsonify(eve_voice=True)
+
+
+@app.route('/api/eve/voice', methods=['POST'])
+def api_eve_voice_set():
+    """Toggle Eve's voice on/off. Speaks a confirmation line, then saves."""
+    d       = request.get_json(silent=True) or {}
+    enabled = bool(d.get('eve_voice', True))
+    # Load / update profile
+    profile = {}
+    if os.path.exists(ACCESSIBILITY_FILE):
+        try:
+            profile = json.load(open(ACCESSIBILITY_FILE, encoding='utf-8'))
+        except Exception:
+            pass
+    profile['eve_voice'] = enabled
+    os.makedirs(PROF_DIR, exist_ok=True)
+    with open(ACCESSIBILITY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(profile, f, indent=2)
+    # Speak confirmation — mute message uses force=True so it plays before silence kicks in
+    if enabled:
+        _eve_speak_async("I\u2019m back! Miss me? \U0001f604")
+    else:
+        _eve_speak_async(
+            "Got it, I\u2019ll keep it down! You can unmute me anytime \U0001f495",
+            force=True
+        )
+    return jsonify(ok=True, eve_voice=enabled)
 
 
 @app.route('/api/eve/calibration')

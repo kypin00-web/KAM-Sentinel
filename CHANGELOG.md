@@ -2,6 +2,34 @@
 
 ---
 
+## v1.5.15 — 2026-02-28
+
+### Eve Voice Toggle — Mute/Unmute Button
+
+A `🔊`/`🔇` button now lives in the dashboard header. One click mutes Eve's voice; another unmutes her. The setting persists in `profiles/accessibility.json` so it survives restarts.
+
+#### `dashboard.html`
+- **`🔊` / `🔇` button** (`#eve-voice-btn`) added to `.hdr-meta` header row, left of the WES MODE button.
+- **`eveVoiceToggle()`** — sends `POST /api/eve/voice` with the new state; updates the button icon and title on response.
+- **`_eveVoiceUpdateBtn()`** — syncs the icon and tooltip text to `_eveVoiceOn`.
+- **`_eveVoiceInit()`** IIFE — fetches `/api/eve/voice` on page load to restore the saved state.
+- **Wes Mode accessibility override** — if `wes_identity === 'yes'` in localStorage, `eveVoiceToggle()` returns immediately and the button is disabled with the tooltip: *"Eve voice is always on in Wes Mode — accessibility override"*.
+- **Emoji encoded as Unicode escapes** (`\ud83d\udd0a` / `\ud83d\udd07`) so Windows cp1252 console never triggers an encode error.
+
+#### `server.py`
+- **`_eve_voice_enabled()`** — reads `eve_voice` from `profiles/accessibility.json`. Returns `True` if: file missing, key absent (default on), or Wes Mode detected (`calibrated: true` or `preferred_hz` present). Returns `False` only when explicitly muted and not in Wes Mode.
+- **`_eve_speak_async(message, hz=None, force=False)`** — added `force` parameter. Checks `_eve_voice_enabled()` before spawning the TTS thread; `force=True` bypasses the check (used for the mute farewell message so it plays before silence takes effect).
+- **`GET /api/eve/voice`** — returns `{eve_voice: bool}`.
+- **`POST /api/eve/voice`** — saves the flag, then:
+  - On mute → speaks *"Got it, I'll keep it down! You can unmute me anytime 💕"* with `force=True`
+  - On unmute → speaks *"I'm back! Miss me? 😄"* normally
+
+#### `scripts/bugwatcher.py`
+- **`_eve_voice_enabled()`** — same logic as server.py: reads `accessibility.json`, Wes Mode always returns `True`.
+- **`eve_speak(message, hz=None, force=False)`** — added `force` parameter and mute check. BugWatcher's voice is now silenced when the dashboard toggle is off.
+
+---
+
 ## v1.5.14 — 2026-02-28
 
 ### Critical Installer Fix — Program Files Write Permission

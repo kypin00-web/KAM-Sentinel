@@ -54,7 +54,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.5.14         ║")
+    print("  ║        KAM SENTINEL  v1.5.15         ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")

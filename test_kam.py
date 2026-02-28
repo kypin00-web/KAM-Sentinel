@@ -1303,6 +1303,55 @@ if _srv16_src:
     else:
         fail("server.py: is_wes flag missing from /api/eve/identity response")
 
+# ── Eve Voice Toggle checks ────────────────────────────────────────────────────
+if _srv16_src:
+    if "'/api/eve/voice'" in _srv16_src:
+        ok("server.py: /api/eve/voice GET+POST endpoints registered")
+    else:
+        fail("server.py: /api/eve/voice missing -- mute toggle has no backend")
+
+    if '_eve_voice_enabled' in _srv16_src:
+        ok("server.py: _eve_voice_enabled() helper present -- mute check centralised")
+    else:
+        fail("server.py: _eve_voice_enabled() missing -- speak calls ignore mute state")
+
+    if 'force=True' in _srv16_src:
+        ok("server.py: force=True used for mute confirmation message")
+    else:
+        fail("server.py: force parameter missing -- mute message may never play")
+
+if _bw16_src:
+    if '_eve_voice_enabled' in _bw16_src:
+        ok("bugwatcher.py: _eve_voice_enabled() present -- mute toggle respected in BugWatcher")
+    else:
+        fail("bugwatcher.py: _eve_voice_enabled() missing -- BugWatcher ignores mute toggle")
+
+    if 'force=False' in _bw16_src or 'force=True' in _bw16_src:
+        ok("bugwatcher.py: eve_speak() force parameter present")
+    else:
+        fail("bugwatcher.py: eve_speak() missing force parameter")
+
+if _dash16_src:
+    if 'eveVoiceToggle' in _dash16_src:
+        ok("dashboard.html: eveVoiceToggle() function present")
+    else:
+        fail("dashboard.html: eveVoiceToggle() missing -- mute button has no handler")
+
+    if 'eve-voice-btn' in _dash16_src:
+        ok("dashboard.html: #eve-voice-btn present in header")
+    else:
+        fail("dashboard.html: #eve-voice-btn missing -- no mute button rendered")
+
+    if '_eveVoiceOn' in _dash16_src:
+        ok("dashboard.html: _eveVoiceOn state variable present")
+    else:
+        fail("dashboard.html: _eveVoiceOn missing -- voice state untracked")
+
+    if "wes_identity" in _dash16_src and 'eveVoiceToggle' in _dash16_src:
+        ok("dashboard.html: Wes Mode override present in eveVoiceToggle()")
+    else:
+        fail("dashboard.html: Wes Mode override missing from eveVoiceToggle()")
+
 
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime

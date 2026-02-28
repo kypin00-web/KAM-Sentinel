@@ -49,15 +49,30 @@ def _hz_to_sapi_pitch(hz):
     return max(-10, min(10, pitch))
 
 
-def eve_speak(message, hz=None):
+def _eve_voice_enabled():
+    """Return True if eve_voice is on (default). Wes Mode always returns True."""
+    try:
+        if os.path.exists(_ACCESSIBILITY_FILE):
+            prof = json.load(open(_ACCESSIBILITY_FILE, encoding='utf-8'))
+            if prof.get('calibrated') or prof.get('preferred_hz') is not None:
+                return True  # Wes Mode — never muted
+            return bool(prof.get('eve_voice', True))
+    except Exception:
+        pass
+    return True
+
+
+def eve_speak(message, hz=None, force=False):
     """
     Speak aloud using pyttsx3 at Wes's calibrated pitch (if profile exists).
-    Only runs locally — silenced by CI=true env var.
+    Only runs locally — silenced by CI=true env var or when eve_voice=false.
+    force=True bypasses the mute toggle (used for the mute confirmation message).
     Non-blocking: spawns a daemon thread so the bugwatcher loop never stalls.
-    hz: override Hz (default: load from accessibility.json)
     Requires: pip install pyttsx3
     """
     if EVE_IS_CI:
+        return
+    if not force and not _eve_voice_enabled():
         return
     if hz is None:
         hz = _load_preferred_hz()
