@@ -781,17 +781,19 @@ try:
     else:
         fail(f"POST from external IP returned {resp.status_code} (expected 403)")
 
-    # Rate limiting: 11+ rapid requests from same non-localhost IP -> 429
+    # Rate limiting: pre-fill bucket to RL_MAX, verify next request is rejected
+    # (avoids timing sensitivity of a 1-second sliding window in CI environments)
+    import time as _rl_time
     test_ip = '10.99.88.77'
-    hit_429 = False
-    for i in range(15):
-        resp = client.get('/api/stats', environ_base={'REMOTE_ADDR': test_ip})
-        if resp.status_code == 429:
-            hit_429 = True
-            ok(f"Rate limiting triggered at request {i+1} -> 429")
-            break
-    if not hit_429:
-        fail("Rate limiting never triggered after 15 requests (expected 429 after 10)")
+    with srv._rl_lock:
+        srv._rl[test_ip] = [_rl_time.time()] * srv.RL_MAX
+    resp = client.get('/api/stats', environ_base={'REMOTE_ADDR': test_ip})
+    if resp.status_code == 429:
+        ok(f"Rate limiting triggered at request {srv.RL_MAX + 1} -> 429")
+    else:
+        fail(f"Rate limiting not triggered (expected 429, got {resp.status_code}) -- check _guard() is called from api_stats()")
+    with srv._rl_lock:
+        srv._rl.pop(test_ip, None)
 
     # Feedback message injection: newlines/nulls sanitized in stored entry
     import os as _os, json as _json

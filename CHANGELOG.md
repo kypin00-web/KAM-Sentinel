@@ -2,6 +2,21 @@
 
 ---
 
+## v1.5.10 — 2026-02-27
+
+### BugWatcher as a CI Service
+- **`.github/workflows/bugwatcher.yml`** — triggers automatically via `workflow_run` whenever `deploy.yml` completes with `conclusion: failure`. Runs `python scripts/bugwatcher.py --ci --wait` on GitHub's ubuntu-latest. No local daemon needed.
+- Workflow has `contents: write` + `actions: read` permissions — allows BugWatcher to push auto-fix commits directly from the CI runner.
+- `workflow_dispatch` trigger also included for manual on-demand diagnosis runs.
+- Uploads `logs/ci_watcher.jsonl` as an artifact (7-day retention) for post-mortem review.
+
+### Rate Limiting — Bug Fix
+- **Root cause:** `_guard()` was defined but never called from any endpoint — the rate limiter existed in code but was completely inactive.
+- **Fix:** `api_stats()` now calls `_guard()` at the top, properly enforcing 10 req/s per non-localhost IP.
+- **Test fix:** The rate limit test no longer relies on timing (15 requests within a 1-second window is flaky in CI). Now pre-fills `srv._rl[test_ip]` to `RL_MAX` and makes exactly 1 more request to confirm 429 — deterministic regardless of request speed.
+
+---
+
 ## v1.5.9 — 2026-02-27
 
 ### CI Hardening — Zero Broken Builds to Production

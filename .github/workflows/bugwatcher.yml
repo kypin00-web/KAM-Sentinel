@@ -1,0 +1,55 @@
+name: BugWatcher — CI Auto-Diagnosis
+
+# Triggers automatically whenever the main deploy workflow finishes with a failure.
+# BugWatcher fetches the failed job logs, diagnoses the issue, applies a known fix
+# if one exists, pushes the fix commit, and waits for the new CI run to confirm green.
+# Also triggerable manually for on-demand diagnosis.
+
+on:
+  workflow_run:
+    workflows: ["KAM Sentinel - Test, Build & Release"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    # Only run when the triggering workflow actually failed (not on success/cancel).
+    # workflow_dispatch always runs (for manual on-demand diagnosis).
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'failure'
+
+    permissions:
+      contents: write   # needed to push auto-fix commits
+      actions: read     # needed to read workflow run logs
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flask psutil GPUtil
+
+    - name: Configure git for auto-fix commits
+      run: |
+        git config user.email "bugwatcher@kam-sentinel.local"
+        git config user.name "KAM Sentinel BugWatcher"
+
+    - name: Run BugWatcher CI diagnosis
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: python scripts/bugwatcher.py --ci --wait
+
+    - name: Upload CI watcher log
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ci-watcher-log
+        path: logs/ci_watcher.jsonl
+        retention-days: 7

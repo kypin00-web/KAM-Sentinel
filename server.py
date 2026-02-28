@@ -121,7 +121,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.9'
+VER               = '1.5.10'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -866,6 +866,8 @@ def api_system():   return jsonify(_sysinfo)
 
 @app.route('/api/stats')
 def api_stats():
+    g = _guard()
+    if g: return g
     try:    s = _live_stats(); _log_stats(s); return jsonify(s)
     except Exception as e: _log_err('api_stats', e); return jsonify(error='stats failed'), 500
 
