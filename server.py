@@ -114,14 +114,15 @@ if sys.platform == 'win32':
     except: pass
 
 # ── Directories ───────────────────────────────────────────────────────────────
-BACKUP_DIR = os.path.join(DATA_DIR, 'backups')
-LOG_DIR    = os.path.join(DATA_DIR, 'logs')
-PROF_DIR   = os.path.join(DATA_DIR, 'profiles')
-BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
+BACKUP_DIR         = os.path.join(DATA_DIR, 'backups')
+LOG_DIR            = os.path.join(DATA_DIR, 'logs')
+PROF_DIR           = os.path.join(DATA_DIR, 'profiles')
+BASELINE           = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
+ACCESSIBILITY_FILE = os.path.join(PROF_DIR, 'accessibility.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.12'
+VER               = '1.5.13'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1128,6 +1129,100 @@ def api_forge_benchmark_baseline():
     return jsonify(first) if first else (jsonify(error='No valid runs'), 404)
 
 
+def _eve_sapi_pitch(hz):
+    """Map 2000–8000 Hz preference to SAPI5 pitch (−10 to +10)."""
+    return max(-10, min(10, round((hz - 5000) / 300)))
+
+
+def _eve_speak_async(message, hz=None):
+    """Fire-and-forget TTS call at optional calibrated Hz. Silenced in CI."""
+    if os.environ.get('CI'):
+        return
+    def _speak():
+        try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            for v in engine.getProperty('voices'):
+                if any(k in v.name.lower() for k in ('zira', 'hazel', 'female', 'samantha', 'karen', 'victoria')):
+                    engine.setProperty('voice', v.id); break
+            engine.setProperty('rate', 175)
+            if hz is not None and sys.platform == 'win32':
+                engine.say(f'<pitch absmiddle="{_eve_sapi_pitch(hz)}">{message}</pitch>')
+            else:
+                engine.say(message)
+            engine.runAndWait()
+        except Exception:
+            pass
+    threading.Thread(target=_speak, daemon=True).start()
+
+
+@app.route('/api/eve/calibration')
+def api_eve_calibration():
+    if os.path.exists(ACCESSIBILITY_FILE):
+        try:
+            with open(ACCESSIBILITY_FILE, encoding='utf-8') as f:
+                return jsonify(json.load(f))
+        except Exception as e:
+            _log_err('api_eve_calibration', e)
+    return jsonify(calibrated=False)
+
+
+@app.route('/api/eve/calibrate', methods=['POST'])
+def api_eve_calibrate():
+    d      = request.get_json(silent=True) or {}
+    action = d.get('action', '')
+    hz     = max(2000, min(8000, int(d.get('hz', 3000))))
+
+    if action == 'speak':
+        msg = str(d.get('message', 'How about now? Better, worse, or the same?'))[:300]
+        _eve_speak_async(msg, hz=hz)
+        return jsonify(ok=True, hz=hz)
+
+    if action == 'save':
+        profile = {
+            'user':          'Wes',
+            'preferred_hz':  hz,
+            'calibrated':    True,
+            'calibrated_at': datetime.date.today().isoformat(),
+        }
+        try:
+            os.makedirs(PROF_DIR, exist_ok=True)
+            with open(ACCESSIBILITY_FILE, 'w', encoding='utf-8') as f:
+                json.dump(profile, f, indent=2)
+        except Exception as e:
+            _log_err('api_eve_calibrate_save', e)
+            return jsonify(error='Could not save profile'), 500
+        _eve_speak_async(
+            "Perfect! I will always speak at this pitch for you. You are so welcome!", hz=hz
+        )
+        return jsonify(ok=True, message="I\u2019ll remember that \U0001f495 \u2014 Eve", profile=profile)
+
+    return jsonify(error='Unknown action. Use speak or save.'), 400
+
+
+@app.route('/api/eve/bluetooth', methods=['POST'])
+def api_eve_bluetooth():
+    try:
+        if sys.platform == 'win32':
+            subprocess.Popen(['start', 'ms-settings:bluetooth'], shell=True,
+                             creationflags=subprocess.CREATE_NO_WINDOW)
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', 'x-apple.systempreferences:com.apple.preferences.Bluetooth'])
+        else:
+            subprocess.Popen(['xdg-open', 'bluetooth:'])
+    except Exception as e:
+        _log_err('api_eve_bluetooth', e)
+        return jsonify(error='Could not open Bluetooth settings'), 500
+    return jsonify(ok=True, message='Opening Bluetooth settings \U0001f4f2 \u2014 Eve')
+
+
+@app.route('/api/eve/identity')
+def api_eve_identity():
+    username = (os.environ.get('USERNAME') or os.environ.get('USER') or '').lower()
+    is_wes = any(n in username for n in ('wes', 'johnson'))
+    return jsonify(username=username, is_wes=is_wes)
+
+
 @app.route('/api/eve/fix', methods=['POST'])
 def api_eve_fix():
     d      = request.get_json(silent=True) or {}
@@ -1151,20 +1246,7 @@ def api_eve_fix():
             f.write(json.dumps(entry) + '\n')
     except Exception as e:
         _log_err('api_eve_fix', e)
-    if not os.environ.get('CI'):
-        def _eve_speak():
-            try:
-                import pyttsx3
-                engine = pyttsx3.init()
-                for v in engine.getProperty('voices'):
-                    if any(k in v.name.lower() for k in ('zira', 'hazel', 'female', 'samantha', 'karen', 'victoria')):
-                        engine.setProperty('voice', v.id); break
-                engine.setProperty('rate', 175)
-                engine.say("Ay, a 404? That is not happening on my watch. Already looking into it!")
-                engine.runAndWait()
-            except Exception:
-                pass
-        threading.Thread(target=_eve_speak, daemon=True).start()
+    _eve_speak_async("Ay, a 404? That is not happening on my watch. Already looking into it!")
     return jsonify(
         message="On it! I'll have this fixed faster than you can say 'ayudame' \U0001f495 \u2014 Eve",
         logged=True,

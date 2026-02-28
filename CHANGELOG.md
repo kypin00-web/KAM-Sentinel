@@ -2,6 +2,35 @@
 
 ---
 
+## v1.5.13 — 2026-02-27
+
+### Wes Mode — Auto-Tune Frequency Calibration + Identity Check
+
+KAM Sentinel now recognises Wes Johnson and delivers a personal message from Kris, then walks him through a hearing calibration flow so Eve always speaks at the right pitch.
+
+#### `dashboard.html` — Wes Identity Check
+
+- **First-launch identity prompt** — on `DOMContentLoaded`, `wesCheckIdentity()` fetches `/api/eve/identity`. If the OS username doesn't match `wes`/`johnson`, Eve shows a centered glassmorphism modal: *"Hey! Quick question before we get started… Are you Wes Johnson? 💕"*
+- **[Yes, that's me!]** — saves `wes_identity=yes` to `localStorage`, closes the prompt, calls `_wesDeliverKrisMsg()`, then launches hearing calibration after a 4.8 s delay.
+- **[No, I'm someone else]** — saves `wes_identity=no`, skips all Wes Mode features.
+- **Auto-detect** — if `/api/eve/identity` returns `is_wes: true` (username already matches), Wes Mode enables silently with no prompt.
+- **Kris's message** — Eve speaks *"I might not always be right, but I'm damn good at some things — love you dad"* via `POST /api/eve/calibrate` and shows it in a pink glassmorphism bubble (bottom-right, 9 s display).
+- **`_wesAutoLaunchCalib()`** — extracted from the old inline `DOMContentLoaded` block; now only runs when identity is confirmed as Wes.
+
+#### `server.py` — `GET /api/eve/identity`
+
+- Reads `os.environ['USERNAME']` (Windows) / `os.environ['USER']` (Unix).
+- Returns `{ username, is_wes }` — `is_wes` is `True` if username contains `wes` or `johnson` (case-insensitive).
+
+#### `test_kam.py` — Section 16 Extended
+
+- 7 new checks: `wesCheckIdentity`, `wesConfirmYes`/`wesConfirmNo`, `wes-identity-modal`, `_wesDeliverKrisMsg`, `kris-msg-bubble`, `/api/eve/identity` endpoint, `is_wes` flag.
+- Fixed `_ROOT16 = ROOT` → `os.path.dirname(os.path.abspath(__file__))` (ROOT is not in test scope).
+- Fixed Unicode encode error: `→` in ok() message replaced with `to` (Windows cp1252 console).
+- Fixed emoji encode error: `🎵` in ok() message removed (Windows cp1252 console).
+
+---
+
 ## v1.5.12 — 2026-02-27
 
 ### Eve Santos — E.V.E (Error Vigilance Engine) is Live

@@ -28,14 +28,39 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ── Eve Santos — E.V.E (Error Vigilance Engine) ───────────────────────────────
 EVE_IS_CI = bool(os.environ.get('CI'))
 
-def eve_speak(message):
+_ACCESSIBILITY_FILE = os.path.join(ROOT, 'profiles', 'accessibility.json')
+
+
+def _load_preferred_hz():
+    """Load Wes's calibrated Hz from profiles/accessibility.json. Returns int or None."""
+    try:
+        if os.path.exists(_ACCESSIBILITY_FILE):
+            with open(_ACCESSIBILITY_FILE, encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('preferred_hz')
+    except Exception:
+        pass
+    return None
+
+
+def _hz_to_sapi_pitch(hz):
+    """Map 2000–8000 Hz preference to SAPI5 pitch range (−10 to +10)."""
+    pitch = round((hz - 5000) / 300)
+    return max(-10, min(10, pitch))
+
+
+def eve_speak(message, hz=None):
     """
-    Speak aloud using pyttsx3. Only runs locally — silenced by CI=true env var.
+    Speak aloud using pyttsx3 at Wes's calibrated pitch (if profile exists).
+    Only runs locally — silenced by CI=true env var.
     Non-blocking: spawns a daemon thread so the bugwatcher loop never stalls.
+    hz: override Hz (default: load from accessibility.json)
     Requires: pip install pyttsx3
     """
     if EVE_IS_CI:
         return
+    if hz is None:
+        hz = _load_preferred_hz()
     def _speak():
         try:
             import pyttsx3
@@ -46,7 +71,11 @@ def eve_speak(message):
                     engine.setProperty('voice', v.id)
                     break
             engine.setProperty('rate', 175)
-            engine.say(message)
+            if hz is not None and sys.platform == 'win32':
+                pitch = _hz_to_sapi_pitch(hz)
+                engine.say(f'<pitch absmiddle="{pitch}">{message}</pitch>')
+            else:
+                engine.say(message)
             engine.runAndWait()
         except Exception:
             pass  # pyttsx3 not installed or no audio device — silent fallback

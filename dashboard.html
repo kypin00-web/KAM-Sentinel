@@ -297,6 +297,118 @@ header {
 #eve-dismiss-btn:hover { border-color:var(--text); color:var(--text); }
 #eve-status { font-size:.75rem; margin-top:8px; color:#ff6b9d; min-height:1em; }
 
+/* ── WES IDENTITY CHECK ─────────────────────────────────────────────────── */
+#wes-identity-modal {
+  display:none; position:fixed; inset:0; z-index:10002;
+  background:rgba(0,0,0,.78); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  align-items:center; justify-content:center;
+}
+#wes-identity-modal.show { display:flex; animation:wIdFadeIn .35s ease forwards; }
+@keyframes wIdFadeIn { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+.wes-id-box {
+  background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+  border:1.5px solid #ff6b9d; border-radius:20px; padding:36px 40px;
+  max-width:460px; width:90%; box-shadow:0 0 50px rgba(255,107,157,.28);
+  text-align:center;
+}
+.wes-id-shield { width:52px; height:60px; margin:0 auto 18px; display:block;
+  filter:drop-shadow(0 0 12px rgba(255,107,157,.5)); }
+.wes-id-question {
+  font-size:1.08rem; font-weight:600; color:#e0e0e0; line-height:1.6; margin-bottom:26px;
+}
+.wes-id-question em { color:#ff6b9d; font-style:normal; }
+.wes-id-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.wes-id-yes {
+  background:linear-gradient(135deg,#ff6b9d,#ff4d8b); color:#fff; border:none;
+  padding:12px 28px; border-radius:12px; font-size:.93rem; font-weight:700; cursor:pointer;
+  transition:transform .15s,box-shadow .15s;
+}
+.wes-id-yes:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(255,107,157,.4); }
+.wes-id-no {
+  background:transparent; color:#a0a0b0; border:1.5px solid rgba(160,160,176,.4);
+  padding:12px 28px; border-radius:12px; font-size:.93rem; cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.wes-id-no:hover { color:#e0e0e0; border-color:rgba(224,224,224,.5); }
+
+/* ── KRIS'S MESSAGE BUBBLE ───────────────────────────────────────────────── */
+#kris-msg-bubble {
+  position:fixed; bottom:28px; right:28px; z-index:10003;
+  background:linear-gradient(135deg,rgba(10,14,23,.97),rgba(15,21,32,.97));
+  border:1.5px solid #ff6b9d; border-radius:16px; padding:20px 22px; max-width:320px;
+  box-shadow:0 0 40px rgba(255,107,157,.3); pointer-events:none;
+  opacity:0; transform:translateY(16px);
+  transition:opacity .45s ease, transform .45s cubic-bezier(.34,1.56,.64,1);
+}
+#kris-msg-bubble.show { opacity:1; transform:translateY(0); }
+.kris-from { font-family:'Share Tech Mono',monospace; font-size:.62rem; letter-spacing:2px;
+  color:#ff6b9d; margin-bottom:8px; }
+.kris-text { font-size:.9rem; color:#e8e8e8; line-height:1.6; font-style:italic; }
+
+/* ── WES MODE — HEARING CALIBRATION MODAL ───────────────────────────────── */
+.wes-calib-modal {
+  display:none; position:fixed; inset:0; z-index:10001;
+  background:rgba(0,0,0,.86); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  align-items:center; justify-content:center;
+}
+.wes-calib-modal.open { display:flex; }
+.wes-calib-box {
+  background:linear-gradient(135deg,var(--bg2),var(--bg3));
+  border:1px solid rgba(255,107,157,.5); border-radius:18px;
+  padding:36px 32px; max-width:460px; width:90%; text-align:center;
+  box-shadow:0 0 60px rgba(255,107,157,.14), 0 24px 64px rgba(0,0,0,.75);
+}
+.wes-calib-hdr {
+  display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:28px;
+}
+.wes-calib-title { font-family:'Share Tech Mono',monospace; font-size:.8rem; letter-spacing:3px; color:#ff6b9d; }
+.wes-calib-sub   { font-size:.72rem; color:var(--dim2); margin-top:4px; letter-spacing:1px; }
+.wes-calib-hz    {
+  font-family:'Share Tech Mono',monospace; font-size:2.8rem; color:#ff6b9d;
+  margin:0 0 4px; text-shadow:0 0 28px rgba(255,107,157,.45); line-height:1;
+}
+.wes-calib-hz-label { font-size:.6rem; letter-spacing:3px; color:var(--dim2); margin-bottom:20px; }
+.wes-calib-dots { display:flex; justify-content:center; gap:5px; margin-bottom:20px; flex-wrap:wrap; }
+.wes-dot { width:9px; height:9px; border-radius:50%; background:var(--border3); transition:background .3s; }
+.wes-dot.active { background:#ff6b9d; box-shadow:0 0 8px rgba(255,107,157,.6); }
+.wes-dot.done   { background:rgba(255,107,157,.35); }
+.wes-calib-msg  {
+  font-size:.95rem; color:var(--white); line-height:1.65; margin-bottom:28px;
+  padding:16px 18px; background:rgba(255,107,157,.07);
+  border-radius:10px; border-left:3px solid rgba(255,107,157,.4); font-style:italic;
+}
+.wes-calib-btns { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; }
+.wes-btn-perfect {
+  background:linear-gradient(135deg,#ff6b9d,#ff4d7e); border:none; color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:.75rem; font-weight:bold;
+  padding:13px 24px; border-radius:7px; cursor:pointer; transition:opacity .2s; letter-spacing:1px;
+}
+.wes-btn-perfect:hover { opacity:.86; }
+.wes-btn-nudge {
+  background:rgba(255,107,157,.1); border:1px solid rgba(255,107,157,.4); color:#ff6b9d;
+  font-family:'Share Tech Mono',monospace; font-size:.7rem;
+  padding:11px 20px; border-radius:7px; cursor:pointer; transition:all .2s; letter-spacing:1px;
+}
+.wes-btn-nudge:hover { background:rgba(255,107,157,.22); }
+.wes-btn-nope {
+  background:none; border:1px solid var(--border2); color:var(--dim2);
+  font-family:'Share Tech Mono',monospace; font-size:.7rem;
+  padding:11px 20px; border-radius:7px; cursor:pointer; transition:all .2s; letter-spacing:1px;
+}
+.wes-btn-nope:hover { border-color:var(--text); color:var(--text); }
+.wes-bt-btn {
+  background:rgba(0,170,255,.12); border:1px solid rgba(0,170,255,.4); color:var(--cyan);
+  font-family:'Share Tech Mono',monospace; font-size:.7rem;
+  padding:11px 20px; border-radius:7px; cursor:pointer; transition:all .2s; letter-spacing:1px;
+}
+.wes-bt-btn:hover { background:rgba(0,170,255,.22); }
+.wes-calib-status { font-size:.8rem; color:#ff6b9d; margin-bottom:10px; min-height:1.2em; }
+.wes-calib-skip {
+  background:none; border:none; color:var(--dim); font-size:.72rem;
+  cursor:pointer; padding:4px; text-decoration:underline; text-underline-offset:3px;
+}
+.wes-calib-skip:hover { color:var(--text); }
+
 /* ── LAYOUT ──────────────────────────────────────────────────────────────── */
 main { padding:20px 24px; max-width:1600px; margin:0 auto; }
 .section-label {
@@ -673,6 +785,7 @@ footer {
     </div>
     <button class="settings-btn" id="overlay-btn" onclick="toggleOverlay()">⊞ OVERLAY</button>
     <button class="settings-btn" id="diag-test-btn" onclick="toggleDiagTestMode()" title="Simulate N/A states for testing">🧪 TEST MODE</button>
+    <button class="settings-btn" id="wes-mode-btn" onclick="wesToggle()" title="Wes Mode — hearing frequency calibration">🎵 WES MODE</button>
     <button class="settings-btn" onclick="openFeedback()">💬 FEEDBACK</button>
     <button class="settings-btn" onclick="openSettings()">⚙ THRESHOLDS</button>
   </div>
@@ -1061,6 +1174,9 @@ footer {
     <button class="overlay-toggle active" id="ov-tog-gpu" onclick="overlayToggle('gpu')">GPU</button>
     <button class="overlay-toggle active" id="ov-tog-ram" onclick="overlayToggle('ram')">RAM</button>
     <button class="overlay-toggle active" id="ov-tog-temp" onclick="overlayToggle('temp')">TEMP</button>
+  </div>
+  <div class="overlay-settings-row" style="border-top:1px solid var(--border2); margin-top:6px; padding-top:6px;">
+    <button class="overlay-toggle" onclick="wesRecalibrate()" title="Re-tune Eve's voice pitch for Wes">🎵 Tune Eve's voice</button>
   </div>
 </div>
 
@@ -1904,6 +2020,201 @@ function toggleBenchHistory() {
   });
 })();
 
+// ── Wes Mode — Hearing Frequency Calibration ──────────────────────────────
+const _WES = { hz: 3000, step: 0, HZ_MIN: 2000, HZ_MAX: 8000, HZ_START: 3000 };
+
+function _wesRenderDots() {
+  const container = document.getElementById('wes-calib-dots');
+  if (!container) return;
+  container.innerHTML = '';
+  const total = Math.round((_WES.HZ_MAX - _WES.HZ_MIN) / 500) + 1; // 13
+  const cur   = Math.round((_WES.hz - _WES.HZ_MIN) / 500);
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('span');
+    d.className = 'wes-dot' + (i === cur ? ' active' : i < cur ? ' done' : '');
+    container.appendChild(d);
+  }
+}
+
+function _wesResetUI(firstTime) {
+  _WES.hz   = _WES.HZ_START;
+  _WES.step = 0;
+  const hzEl  = document.getElementById('wes-hz-val');
+  const msgEl = document.getElementById('wes-eve-msg');
+  const stEl  = document.getElementById('wes-calib-status');
+  const btns  = document.getElementById('wes-calib-btns');
+  const btSec = document.getElementById('wes-bt-section');
+  if (hzEl)  hzEl.textContent  = _WES.hz;
+  if (msgEl) msgEl.textContent = '\u201cHey Mr. Johnson! Can you hear me okay?\u201d';
+  if (stEl)  stEl.textContent  = '';
+  if (btns)  btns.style.display   = '';
+  if (btSec) btSec.style.display  = 'none';
+  _wesRenderDots();
+}
+
+async function _wesSpeak(hz, message) {
+  try {
+    await fetch('/api/eve/calibrate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'speak', hz, message }),
+    });
+  } catch(e) { /* server may not be running */ }
+}
+
+// Called from header button on first use
+async function wesToggle() {
+  const done = localStorage.getItem('wes_calib_done') === '1';
+  _wesResetUI();
+  document.getElementById('wes-calib-modal').classList.add('open');
+  if (done) {
+    // Re-calibration — Eve says something encouraging first
+    await _wesSpeak(_WES.HZ_START, "Smart! Let\u2019s find your sweet spot today!");
+  }
+  await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
+}
+
+// Called from overlay "Tune Eve's voice" button
+async function wesRecalibrate() {
+  _wesResetUI();
+  document.getElementById('wes-calib-modal').classList.add('open');
+  await _wesSpeak(_WES.HZ_START, "Smart! Let\u2019s find your sweet spot today!");
+  await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
+}
+
+async function calibResponse(choice) {
+  if (choice === 'perfect') {
+    const stEl = document.getElementById('wes-calib-status');
+    if (stEl) stEl.textContent = 'Saving your preference\u2026';
+    try {
+      const r = await fetch('/api/eve/calibrate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', hz: _WES.hz }),
+      });
+      const d = await r.json();
+      if (stEl) stEl.textContent = d.message || 'Saved! \uD83D\uDC95';
+      localStorage.setItem('wes_calib_done', '1');
+      setTimeout(() => document.getElementById('wes-calib-modal').classList.remove('open'), 2400);
+    } catch(e) {
+      if (stEl) stEl.textContent = 'Could not save \u2014 try again?';
+    }
+    return;
+  }
+
+  const bump = (choice === 'better') ? 500 : 1000;
+  _WES.hz   = Math.min(_WES.hz + bump, _WES.HZ_MAX);
+  _WES.step++;
+
+  if (_WES.hz >= _WES.HZ_MAX) {
+    _wesShowBluetooth(); return;
+  }
+
+  const hzEl  = document.getElementById('wes-hz-val');
+  const msgEl = document.getElementById('wes-eve-msg');
+  if (hzEl)  hzEl.textContent  = _WES.hz;
+  if (msgEl) msgEl.textContent = '\u201cHow about now? Better, worse, or the same?\u201d';
+  _wesRenderDots();
+  await _wesSpeak(_WES.hz, "How about now? Better, worse, or the same?");
+}
+
+function _wesShowBluetooth() {
+  const btns  = document.getElementById('wes-calib-btns');
+  const btSec = document.getElementById('wes-bt-section');
+  const msgEl = document.getElementById('wes-eve-msg');
+  if (btns)  btns.style.display   = 'none';
+  if (btSec) btSec.style.display  = '';
+  if (msgEl) msgEl.textContent =
+    '\u201cLet\u2019s try connecting your hearing aids first \u2014 that might help a lot more than pitch alone. Want me to open Bluetooth settings?\u201d';
+  _wesSpeak(_WES.hz,
+    "Let\u2019s try connecting your hearing aids first. That might help a lot more than pitch alone. Want me to open Bluetooth settings?");
+}
+
+async function wesOpenBluetooth() {
+  const stEl = document.getElementById('wes-calib-status');
+  if (stEl) stEl.textContent = 'Opening Bluetooth settings\u2026';
+  try {
+    await fetch('/api/eve/bluetooth', { method: 'POST' });
+    if (stEl) stEl.textContent = 'Bluetooth settings opened \uD83D\uDCF2';
+  } catch(e) {
+    if (stEl) stEl.textContent = 'Could not open settings \u2014 please open manually.';
+  }
+}
+
+function wesClose() { document.getElementById('wes-calib-modal').classList.remove('open'); }
+
+// ── Wes Identity Check ────────────────────────────────────────────────────
+const _KRIS_MSG = "I might not always be right, but I\u2019m damn good at some things \u2014 love you dad";
+
+function wesCheckIdentity() {
+  if (localStorage.getItem('wes_identity')) return; // already answered this session
+  fetch('/api/eve/identity')
+    .then(r => r.json())
+    .then(d => {
+      if (d.is_wes) {
+        // Username already matches — enable Wes Mode silently
+        localStorage.setItem('wes_identity', 'yes');
+        _wesAutoLaunchCalib();
+      } else {
+        document.getElementById('wes-identity-modal').classList.add('show');
+      }
+    })
+    .catch(() => {
+      // Server unreachable — show prompt anyway
+      document.getElementById('wes-identity-modal').classList.add('show');
+    });
+}
+
+function wesConfirmYes() {
+  localStorage.setItem('wes_identity', 'yes');
+  document.getElementById('wes-identity-modal').classList.remove('show');
+  _wesDeliverKrisMsg();
+  // Start calibration after message has had time to breathe
+  setTimeout(() => { if (!localStorage.getItem('wes_calib_done')) wesToggle(); }, 4800);
+}
+
+function wesConfirmNo() {
+  localStorage.setItem('wes_identity', 'no');
+  document.getElementById('wes-identity-modal').classList.remove('show');
+}
+
+function _wesDeliverKrisMsg() {
+  document.getElementById('kris-msg-text').textContent = _KRIS_MSG;
+  document.getElementById('kris-msg-bubble').classList.add('show');
+  // Ask Eve to speak it at a warm mid-range pitch
+  fetch('/api/eve/calibrate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action:'speak', message: _KRIS_MSG, hz: 3000})
+  }).catch(() => {});
+  setTimeout(() => document.getElementById('kris-msg-bubble').classList.remove('show'), 9000);
+}
+
+function _wesAutoLaunchCalib() {
+  const done = localStorage.getItem('wes_calib_done') === '1';
+  if (!done) {
+    fetch('/api/eve/calibration').then(r => r.json()).then(d => {
+      if (d.calibrated) {
+        localStorage.setItem('wes_calib_done', '1');
+      } else {
+        setTimeout(async () => {
+          _wesResetUI();
+          document.getElementById('wes-calib-modal').classList.add('open');
+          await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
+        }, 2800);
+      }
+    }).catch(() => {});
+  }
+}
+
+// Auto-launch: identity check first, calibration only if identity is confirmed
+document.addEventListener('DOMContentLoaded', () => {
+  const identity = localStorage.getItem('wes_identity');
+  if (identity === 'yes') {
+    _wesAutoLaunchCalib();
+  } else if (!identity) {
+    setTimeout(wesCheckIdentity, 1200);
+  }
+  // identity === 'no' → skip all Wes Mode
+});
+
 // ── Eve Santos — 404 Watchdog ─────────────────────────────────────────────
 let _eveCooldown = 0;
 let _eve404Url   = '';
@@ -2005,6 +2316,73 @@ async function eveFix() {
     </div>
   </div>
 </div>
+<!-- ── WES MODE — HEARING CALIBRATION MODAL ──────────────────────────── -->
+<div id="wes-calib-modal" class="wes-calib-modal" role="dialog" aria-modal="true" aria-label="Eve hearing frequency calibration">
+  <div class="wes-calib-box">
+    <div class="wes-calib-hdr">
+      <svg width="46" height="50" viewBox="0 0 46 50" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M23 2 L42 10 L42 27 C42 38 32 46 23 50 C14 46 4 38 4 27 L4 10 Z"
+              fill="rgba(255,107,157,.15)" stroke="#ff6b9d" stroke-width="1.5"/>
+        <text x="23" y="33" text-anchor="middle" font-family="'Share Tech Mono',monospace"
+              font-size="18" font-weight="bold" fill="#ff6b9d">E</text>
+      </svg>
+      <div>
+        <div class="wes-calib-title">HEARING CALIBRATION</div>
+        <div class="wes-calib-sub">E.V.E &mdash; Voice Frequency Tuning</div>
+      </div>
+    </div>
+
+    <div class="wes-calib-hz"><span id="wes-hz-val">3000</span></div>
+    <div class="wes-calib-hz-label">Hz &mdash; CURRENT PITCH</div>
+
+    <div class="wes-calib-dots" id="wes-calib-dots"></div>
+
+    <div id="wes-eve-msg" class="wes-calib-msg">
+      &#x201C;Hey Mr. Johnson! Can you hear me okay?&#x201D;
+    </div>
+
+    <div class="wes-calib-btns" id="wes-calib-btns">
+      <button class="wes-btn-perfect" onclick="calibResponse('perfect')">Yes, perfectly! &#x2713;</button>
+      <button class="wes-btn-nudge"   onclick="calibResponse('better')">A little better please</button>
+      <button class="wes-btn-nope"    onclick="calibResponse('nope')">Not really</button>
+    </div>
+
+    <div id="wes-bt-section" style="display:none; margin-bottom:20px;">
+      <button class="wes-bt-btn" onclick="wesOpenBluetooth()">Open Bluetooth Settings &#x1F4F2;</button>
+    </div>
+
+    <div id="wes-calib-status" class="wes-calib-status"></div>
+    <button class="wes-calib-skip" onclick="wesClose()">Skip for now</button>
+  </div>
+</div>
+
+<!-- ── WES IDENTITY CHECK ──────────────────────────────────────────────── -->
+<div id="wes-identity-modal" role="dialog" aria-modal="true" aria-label="Are you Wes Johnson?">
+  <div class="wes-id-box">
+    <svg class="wes-id-shield" viewBox="0 0 42 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M21 2 L39 9.5 L39 26 C39 36 30 43 21 46 C12 43 3 36 3 26 L3 9.5 Z"
+            fill="rgba(255,107,157,.15)" stroke="#ff6b9d" stroke-width="1.5"/>
+      <text x="21" y="31" text-anchor="middle"
+            font-family="'Share Tech Mono',monospace"
+            font-size="17" font-weight="bold" fill="#ff6b9d">E</text>
+    </svg>
+    <div class="wes-id-question">
+      Hey! Quick question before we get started&hellip;<br>
+      <em>Are you Wes Johnson? &#x1F495;</em>
+    </div>
+    <div class="wes-id-btns">
+      <button class="wes-id-yes" onclick="wesConfirmYes()">Yes, that&#39;s me!</button>
+      <button class="wes-id-no"  onclick="wesConfirmNo()">No, I&#39;m someone else</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── KRIS'S MESSAGE BUBBLE ───────────────────────────────────────────── -->
+<div id="kris-msg-bubble" aria-live="polite">
+  <div class="kris-from">&#x1F495; A MESSAGE FROM KRIS</div>
+  <div class="kris-text" id="kris-msg-text"></div>
+</div>
+
 <!-- ── EVE SANTOS — 404 POPUP ─────────────────────────────────────────── -->
 <div id="eve-popup" role="alertdialog" aria-label="Eve Santos error alert">
   <div id="eve-avatar">

@@ -1128,6 +1128,182 @@ if _has_internet is None:
     warn("No URLs configured for live URL check section")
 
 
+# =============================================================================
+# Section 16: Wes Mode — Hearing Frequency Calibration
+# =============================================================================
+import re as _re16
+section("16. Wes Mode — Hearing Frequency Calibration")
+
+_ROOT16 = os.path.dirname(os.path.abspath(__file__))
+
+# ── server.py checks ──────────────────────────────────────────────────────────
+_srv16_src = ''
+try:
+    with open(os.path.join(_ROOT16, 'server.py'), encoding='utf-8') as _f:
+        _srv16_src = _f.read()
+except Exception as _e16:
+    fail(f"Could not read server.py: {_e16}")
+
+if _srv16_src:
+    if 'ACCESSIBILITY_FILE' in _srv16_src:
+        ok("ACCESSIBILITY_FILE constant defined in server.py")
+    else:
+        fail("ACCESSIBILITY_FILE constant missing from server.py")
+
+    if "'/api/eve/calibration'" in _srv16_src:
+        ok("/api/eve/calibration endpoint registered")
+    else:
+        fail("/api/eve/calibration endpoint missing -- Wes Mode calibration state unavailable")
+
+    if "'/api/eve/calibrate'" in _srv16_src and "methods=['POST']" in _srv16_src:
+        ok("/api/eve/calibrate POST endpoint registered")
+    else:
+        fail("/api/eve/calibrate POST missing -- calibration speak/save won't work")
+
+    if "'/api/eve/bluetooth'" in _srv16_src:
+        ok("/api/eve/bluetooth endpoint registered")
+    else:
+        fail("/api/eve/bluetooth endpoint missing -- Bluetooth settings shortcut unavailable")
+
+    if '_eve_speak_async' in _srv16_src:
+        ok("_eve_speak_async() helper present -- avoids duplicate pyttsx3 code")
+    else:
+        fail("_eve_speak_async() not found -- Eve's calibrated voice won't work from server")
+
+    # Hz range guard: max(2000, min(8000, ...))
+    if 'max(2000, min(8000,' in _srv16_src:
+        ok("Hz clamped to 2000–8000 range in /api/eve/calibrate")
+    else:
+        fail("Hz not clamped -- out-of-range values accepted by /api/eve/calibrate")
+
+# ── bugwatcher.py checks ──────────────────────────────────────────────────────
+_bw16_src = ''
+try:
+    with open(os.path.join(_ROOT16, 'scripts', 'bugwatcher.py'), encoding='utf-8') as _f:
+        _bw16_src = _f.read()
+except Exception as _e16b:
+    fail(f"Could not read scripts/bugwatcher.py: {_e16b}")
+
+if _bw16_src:
+    if '_ACCESSIBILITY_FILE' in _bw16_src:
+        ok("_ACCESSIBILITY_FILE path defined in bugwatcher.py")
+    else:
+        fail("_ACCESSIBILITY_FILE missing from bugwatcher.py")
+
+    if '_load_preferred_hz' in _bw16_src:
+        ok("_load_preferred_hz() defined -- Eve loads Wes's calibration on startup")
+    else:
+        fail("_load_preferred_hz() missing from bugwatcher.py")
+
+    if '_hz_to_sapi_pitch' in _bw16_src:
+        ok("_hz_to_sapi_pitch() defined -- Hz to SAPI5 pitch mapping for Windows")
+    else:
+        fail("_hz_to_sapi_pitch() missing from bugwatcher.py")
+
+    if 'absmiddle' in _bw16_src:
+        ok("SAPI5 pitch XML markup (<pitch absmiddle=...>) present in eve_speak()")
+    else:
+        fail("SAPI5 pitch markup missing -- Eve speaks at default pitch regardless of calibration")
+
+# ── profiles/accessibility.json schema check (if file exists) ─────────────────
+_acc_path = os.path.join(_ROOT16, 'profiles', 'accessibility.json')
+if os.path.exists(_acc_path):
+    try:
+        with open(_acc_path, encoding='utf-8') as _f:
+            _acc = json.loads(_f.read())
+        _req_keys = ('user', 'preferred_hz', 'calibrated', 'calibrated_at')
+        _missing  = [k for k in _req_keys if k not in _acc]
+        if not _missing:
+            ok(f"profiles/accessibility.json schema valid (preferred_hz={_acc.get('preferred_hz')} Hz)")
+        else:
+            fail(f"profiles/accessibility.json missing keys: {_missing}")
+        _hz = _acc.get('preferred_hz', 0)
+        if 2000 <= _hz <= 8000 and _hz % 500 == 0:
+            ok(f"preferred_hz={_hz} is within valid range 2000–8000 Hz (500 Hz steps)")
+        else:
+            fail(f"preferred_hz={_hz} out of range or not a 500 Hz step (expected 2000–8000)")
+    except Exception as _e16c:
+        fail(f"profiles/accessibility.json parse error: {_e16c}")
+else:
+    ok("profiles/accessibility.json not yet created (normal on fresh install — calibration creates it)")
+
+# ── dashboard.html checks ─────────────────────────────────────────────────────
+_dash16_src = ''
+try:
+    with open(os.path.join(_ROOT16, 'dashboard.html'), encoding='utf-8') as _f:
+        _dash16_src = _f.read()
+except Exception as _e16d:
+    fail(f"Could not read dashboard.html: {_e16d}")
+
+if _dash16_src:
+    if 'wes-calib-modal' in _dash16_src:
+        ok("dashboard.html: Wes Mode calibration modal present")
+    else:
+        fail("dashboard.html: wes-calib-modal missing -- calibration UI not rendered")
+
+    if 'wesToggle' in _dash16_src:
+        ok("dashboard.html: wesToggle() function present -- WES MODE button wired")
+    else:
+        fail("dashboard.html: wesToggle() missing -- Wes Mode button has no handler")
+
+    if 'wesRecalibrate' in _dash16_src:
+        ok("dashboard.html: wesRecalibrate() present -- overlay Tune Eve's voice button wired")
+    else:
+        fail("dashboard.html: wesRecalibrate() missing -- re-calibration button won't work")
+
+    if 'calibResponse' in _dash16_src:
+        ok("dashboard.html: calibResponse() state machine present")
+    else:
+        fail("dashboard.html: calibResponse() missing -- calibration buttons have no handler")
+
+    if 'wesOpenBluetooth' in _dash16_src:
+        ok("dashboard.html: wesOpenBluetooth() present -- Bluetooth fallback at 8000 Hz wired")
+    else:
+        fail("dashboard.html: wesOpenBluetooth() missing -- no Bluetooth fallback at Hz ceiling")
+
+    if 'wes_calib_done' in _dash16_src:
+        ok("dashboard.html: localStorage 'wes_calib_done' key tracked -- no repeated auto-launch")
+    else:
+        fail("dashboard.html: wes_calib_done localStorage key missing -- calibration will auto-launch every load")
+
+    if 'wesCheckIdentity' in _dash16_src:
+        ok("dashboard.html: wesCheckIdentity() present -- username-based identity detection")
+    else:
+        fail("dashboard.html: wesCheckIdentity() missing -- Wes identity prompt won't trigger")
+
+    if 'wesConfirmYes' in _dash16_src and 'wesConfirmNo' in _dash16_src:
+        ok("dashboard.html: wesConfirmYes() + wesConfirmNo() handlers present")
+    else:
+        fail("dashboard.html: identity confirm handlers missing")
+
+    if 'wes-identity-modal' in _dash16_src:
+        ok("dashboard.html: #wes-identity-modal present -- identity prompt rendered")
+    else:
+        fail("dashboard.html: wes-identity-modal missing -- identity check has no UI")
+
+    if '_wesDeliverKrisMsg' in _dash16_src:
+        ok("dashboard.html: _wesDeliverKrisMsg() present -- Kris's message delivered on confirm")
+    else:
+        fail("dashboard.html: _wesDeliverKrisMsg() missing -- Kris's message won't play")
+
+    if 'kris-msg-bubble' in _dash16_src:
+        ok("dashboard.html: #kris-msg-bubble present -- message from Kris rendered")
+    else:
+        fail("dashboard.html: kris-msg-bubble missing -- message from Kris has no UI")
+
+# ── server.py identity endpoint check ─────────────────────────────────────────
+if _srv16_src:
+    if "'/api/eve/identity'" in _srv16_src:
+        ok("server.py: /api/eve/identity endpoint registered -- username-based Wes detection")
+    else:
+        fail("server.py: /api/eve/identity missing -- identity check can't detect Wes from username")
+
+    if 'is_wes' in _srv16_src:
+        ok("server.py: is_wes flag computed in /api/eve/identity")
+    else:
+        fail("server.py: is_wes flag missing from /api/eve/identity response")
+
+
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

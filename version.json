@@ -1,9 +1,9 @@
 {
-  "version": "1.5.12",
-  "build": 22,
+  "version": "1.5.13",
+  "build": 23,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.12: Eve Santos (E.V.E.) is live — 404 popup, pyttsx3 voice, /api/eve/fix, Eve commit style.",
+  "changelog": "v1.5.13: Wes Mode — hearing frequency calibration, identity check, Kris's message.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,12 +12,12 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: Eve Santos (E.V.E — Error Vigilance Engine) — BugWatcher now has a full persona with voice, personality, and style",
-    "NEW: Eve 404 popup in dashboard — glassmorphism bubble with pink shield avatar, slides in on any /api/ 404, 5-min cooldown",
-    "NEW: POST /api/eve/fix — logs 404s to logs/bugs/eve_reported.jsonl, triggers pyttsx3 voice locally",
-    "NEW: pyttsx3 voice in bugwatcher.py — Eve speaks on startup, bug received, fixed, escalated, CI events (silenced by CI=true)",
-    "NEW: Eve's commit messages — 'Fixed it \uD83D\uDC95 NSIS path was dragging. You're welcome. — Eve'",
-    "NEW: Eve's daily standup format — printed in her voice at 23:55 local time",
-    "NEW: docs/eve.md — full persona, voice trigger table, commit style, standup format, API reference"
+    "NEW: Wes Mode — hearing frequency calibration (2000–8000 Hz in 500 Hz steps)",
+    "NEW: Identity check — Eve asks 'Are you Wes Johnson?' on first launch if username doesn't match",
+    "NEW: Kris's message — Eve delivers a personal message from Kris when Wes confirms identity",
+    "NEW: /api/eve/identity — returns is_wes flag based on OS username",
+    "NEW: /api/eve/calibration, /api/eve/calibrate, /api/eve/bluetooth endpoints",
+    "NEW: SAPI5 pitch control in pyttsx3 — Eve's voice tuned to Wes's preferred Hz",
+    "NEW: profiles/accessibility.json — stores preferred_hz, calibrated state, calibrated_at"
   ]
 }
