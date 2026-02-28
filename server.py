@@ -121,7 +121,7 @@ BASELINE   = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.11'
+VER               = '1.5.12'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1126,6 +1126,49 @@ def api_forge_benchmark_baseline():
                 if r.get('baseline'): return jsonify(r)
             except: pass
     return jsonify(first) if first else (jsonify(error='No valid runs'), 404)
+
+
+@app.route('/api/eve/fix', methods=['POST'])
+def api_eve_fix():
+    d      = request.get_json(silent=True) or {}
+    url    = str(d.get('url', ''))[:500]
+    code   = d.get('error_code', 404)
+    ctx    = str(d.get('context', ''))[:200]
+    bugs_dir = os.path.join(DATA_DIR, 'logs', 'bugs')
+    report_f = os.path.join(bugs_dir, 'eve_reported.jsonl')
+    os.makedirs(bugs_dir, exist_ok=True)
+    entry = {
+        'ts':          time.time(),
+        'date':        datetime.datetime.now().isoformat(),
+        'url':         url,
+        'error_code':  code,
+        'context':     ctx,
+        'eve_reported': True,
+        'status':      'open',
+    }
+    try:
+        with open(report_f, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry) + '\n')
+    except Exception as e:
+        _log_err('api_eve_fix', e)
+    if not os.environ.get('CI'):
+        def _eve_speak():
+            try:
+                import pyttsx3
+                engine = pyttsx3.init()
+                for v in engine.getProperty('voices'):
+                    if any(k in v.name.lower() for k in ('zira', 'hazel', 'female', 'samantha', 'karen', 'victoria')):
+                        engine.setProperty('voice', v.id); break
+                engine.setProperty('rate', 175)
+                engine.say("Ay, a 404? That is not happening on my watch. Already looking into it!")
+                engine.runAndWait()
+            except Exception:
+                pass
+        threading.Thread(target=_eve_speak, daemon=True).start()
+    return jsonify(
+        message="On it! I'll have this fixed faster than you can say 'ayudame' \U0001f495 \u2014 Eve",
+        logged=True,
+    )
 
 
 if __name__ == '__main__':

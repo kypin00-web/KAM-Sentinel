@@ -96,6 +96,7 @@ Four daemon threads run at module load:
 | `/api/shutdown` | POST | Flush logs and shut down server (called by `beforeunload`) |
 | `/api/telemetry` | GET | Anonymous install/launch stats (local only unless `TELEMETRY_URL` set) |
 | `/api/errors` | GET | Recent error log entries from `logs/errors.jsonl` |
+| `/api/eve/fix` | POST | Eve Santos 404 report: logs to `logs/bugs/eve_reported.jsonl`, triggers diagnosis, speaks locally |
 
 ---
 
@@ -176,7 +177,9 @@ python server.py 8080      # custom port
 
 ---
 
-## BugWatcher
+## BugWatcher — Run by Eve Santos
+
+BugWatcher is run by Eve Santos (E.V.E — Error Vigilance Engine). See `docs/eve.md` for her full persona. She speaks, she fixes, she does not tolerate 404s.
 
 Background auto-fix daemon — runs silently, only surfaces escalated items.
 
@@ -184,10 +187,12 @@ Background auto-fix daemon — runs silently, only surfaces escalated items.
 - **Start:** `python scripts/bugwatcher.py` (foreground) or `python scripts/bugwatcher.py --once` (single cycle / CI)
 - **Poll interval:** 60 seconds
 - **Logs all actions:** `logs/bugwatcher.jsonl` (timestamp, bug_id, action, result, tests_passing)
-- **Daily summary:** `logs/bugwatcher_daily/YYYY-MM-DD.json` (generated at 23:55 local time)
+- **Daily summary:** `logs/bugwatcher_daily/YYYY-MM-DD.json` (generated at 23:55 local time) — printed in Eve's standup format
 - **Escalated bugs:** `logs/bugs/escalated.jsonl` — ONLY these need human review
+- **Eve-reported 404s:** `logs/bugs/eve_reported.jsonl` — from `/api/eve/fix` dashboard popup
 - **Known issue patterns** live in `KNOWN_ISSUES` dict inside the script; expand as new patterns emerge
 - **Criticality:** critical bugs → test suite runs after auto-resolve; high → fix within 3 cycles; medium/low → daily batch
+- **Voice:** Eve speaks via pyttsx3 when running locally (`pip install pyttsx3`); silenced by `CI=true`
 
 ---
 

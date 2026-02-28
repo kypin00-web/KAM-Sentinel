@@ -154,6 +154,30 @@
     .feat-title { font-family: monospace; font-size: .75rem; letter-spacing: 2px; color: var(--cyan); margin-bottom: 6px; }
     .feat-desc { font-size: .82rem; color: var(--dim); line-height: 1.5; }
 
+    /* ── MEET EVE ── */
+    .meet-eve {
+      max-width: 900px;
+      width: 100%;
+      margin: 40px auto 0;
+      padding: 0 24px;
+    }
+    .eve-card {
+      background: var(--bg2);
+      border: 1px solid rgba(255,107,157,.35);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 0 32px rgba(255,107,157,.05);
+    }
+    .eve-shield { flex-shrink: 0; filter: drop-shadow(0 0 12px rgba(255,107,157,.35)); }
+    .eve-label {
+      font-family: monospace; font-size: .72rem; letter-spacing: 2px;
+      color: #ff6b9d; margin-bottom: 8px;
+    }
+    .eve-desc { font-size: .85rem; color: var(--dim); line-height: 1.65; }
+
     /* ── FOOTER ── */
     footer {
       padding: 24px 32px;
@@ -176,7 +200,7 @@
 <nav>
   <img src="assets/kam_logo.svg" width="32" height="32" alt="KAM Sentinel shield logo" style="display:block;">
   <span class="logo-rest">AM SENTINEL</span>
-  <span class="nav-tag">v1.5.4 STABLE</span>
+  <span class="nav-tag">v1.5.12 STABLE</span>
 </nav>
 
 <main class="hero">
@@ -232,6 +256,26 @@
       <div class="feat-icon">📊</div>
       <div class="feat-title">LIVE CHARTS</div>
       <div class="feat-desc">60-point rolling history for CPU, GPU, RAM, and network. Sub-2ms hot path on every poll.</div>
+    </div>
+  </div>
+
+  <div class="meet-eve">
+    <div class="eve-card">
+      <div class="eve-shield">
+        <svg width="52" height="58" viewBox="0 0 52 58" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M26 2 L48 11 L48 30 C48 43 37 52 26 58 C15 52 4 43 4 30 L4 11 Z"
+                fill="rgba(255,107,157,.15)" stroke="#ff6b9d" stroke-width="1.5"/>
+          <text x="26" y="38" text-anchor="middle" font-family="monospace"
+                font-size="22" font-weight="bold" fill="#ff6b9d">E</text>
+        </svg>
+      </div>
+      <div>
+        <div class="eve-label">MEET EVE &mdash; YOUR BUG-FIXING AGENT</div>
+        <div class="eve-desc">
+          KAM Sentinel comes with Eve &mdash; your personal bug-fixing agent who monitors your app,
+          fixes issues automatically, and yes, she will literally tell you when something breaks. &#x1F495;
+        </div>
+      </div>
     </div>
   </div>
 </main>

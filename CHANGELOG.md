@@ -2,6 +2,49 @@
 
 ---
 
+## v1.5.12 — 2026-02-27
+
+### Eve Santos — E.V.E (Error Vigilance Engine) is Live
+
+KAM Sentinel now has an autonomous bug-fixing agent with a full personality, voice, and style.
+
+#### `scripts/bugwatcher.py` — Eve's Voice
+- **`eve_speak(message)`** — pyttsx3-powered TTS, female voice (prefers Zira/Hazel/Samantha), rate 175 WPM. Non-blocking daemon thread. Silenced by `CI=true`. Requires `pip install pyttsx3`.
+- **Voice triggers:** startup, bug report received, bug fixed, escalated, CI fix pushed, CI green, CI escalated.
+- **All print() calls** rewritten in Eve's voice — `[Eve]` and `[Eve/CI]` prefixes replace generic `[BugWatcher]`.
+- **Commit messages** now in Eve's style — key-specific headlines via `_EVE_COMMIT_MSGS`:
+  - `nsis_not_in_path` → `"Fixed it 💕 NSIS path was dragging. You're welcome. — Eve"`
+  - `test_suite_encoding_fp` → `"Ay, encoding check was flagging binaries. Not on my watch. — Eve"`
+  - `missing_python_dep` → `"Added the missing dep, faster than you can say pip install. — Eve 💕"`
+- **Escalation notes** in `ci_watcher.jsonl` now include `eve_note` field with her full escalation message.
+- **Daily standup** printed in Eve's format at 23:55; `eve_standup` field added to the daily JSON.
+
+#### `server.py` — `POST /api/eve/fix`
+- Accepts `{url, error_code, context}` — logs to `logs/bugs/eve_reported.jsonl` with `eve_reported: true`.
+- Triggers `pyttsx3` voice in a background thread when running locally (not in CI).
+- Returns `{ message: "On it! I'll have this fixed faster than you can say 'ayudame' 💕 — Eve", logged: true }`.
+
+#### `dashboard.html` — Eve 404 Popup
+- **Fetch interceptor** (`window.fetch` wrapper) catches any `/api/` 404 and triggers Eve's popup.
+- **5-minute cooldown** between popups — no spam.
+- **Popup:** bottom-right corner, glassmorphism dark card, pink/coral `#ff6b9d` border and glow.
+- **Eve avatar:** inline SVG shield with "E" in `#ff6b9d` (parallel to the KAM K shield design).
+- **Speech bubble:** `"Ay, that's not supposed to happen! Want me to fix that? 💕"`
+- **Buttons:** `[Yes, fix it! 💕]` → calls `POST /api/eve/fix`; `[Dismiss]` → hides popup.
+- **Slide-in animation:** `cubic-bezier(.34,1.56,.64,1)` — bouncy entrance.
+
+#### `docs/eve.md` — Eve's Full Persona
+- Full character spec: role, experience, personality, zero-tolerance list, motto, languages.
+- Voice trigger table, commit style examples, daily standup format, escalation note, API reference.
+
+#### `docs/index.html` — "Meet Eve" Section
+- New card above the footer: Eve's pink shield SVG, "Meet Eve — Your Bug-Fixing Agent" label, description.
+- Nav version tag updated to `v1.5.12 STABLE`.
+
+#### `CLAUDE.md` — Eve Santos section added to BugWatcher docs, `/api/eve/fix` added to endpoint table.
+
+---
+
 ## v1.5.11 — 2026-02-27
 
 ### End-to-End URL Validation

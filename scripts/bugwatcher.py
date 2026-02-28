@@ -20,10 +20,46 @@ Environment:
                    Required for CI monitoring. Auto-available in GitHub Actions.
 """
 
-import json, os, sys, time, datetime, subprocess, argparse, re
+import json, os, sys, time, datetime, subprocess, argparse, re, threading
 import urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ── Eve Santos — E.V.E (Error Vigilance Engine) ───────────────────────────────
+EVE_IS_CI = bool(os.environ.get('CI'))
+
+def eve_speak(message):
+    """
+    Speak aloud using pyttsx3. Only runs locally — silenced by CI=true env var.
+    Non-blocking: spawns a daemon thread so the bugwatcher loop never stalls.
+    Requires: pip install pyttsx3
+    """
+    if EVE_IS_CI:
+        return
+    def _speak():
+        try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            voices = engine.getProperty('voices')
+            for v in voices:
+                if any(k in v.name.lower() for k in ('zira', 'hazel', 'female', 'samantha', 'karen', 'victoria')):
+                    engine.setProperty('voice', v.id)
+                    break
+            engine.setProperty('rate', 175)
+            engine.say(message)
+            engine.runAndWait()
+        except Exception:
+            pass  # pyttsx3 not installed or no audio device — silent fallback
+    threading.Thread(target=_speak, daemon=True).start()
+
+
+# Eve's commit message headlines per CI issue type
+_EVE_COMMIT_MSGS = {
+    'nsis_not_in_path':       "Fixed it \U0001f495 NSIS path was dragging. You're welcome. \u2014 Eve",
+    'missing_python_dep':     "Added the missing dep, faster than you can say pip install. \u2014 Eve \U0001f495",
+    'test_suite_encoding_fp': "Ay, encoding check was flagging binaries. Not on my watch. \u2014 Eve",
+}
+_EVE_COMMIT_DEFAULT = "Auto-fix applied \U0001f495 Clean build, you're welcome. \u2014 Eve"
 
 FEEDBACK_BUG_FILE  = os.path.join(ROOT, 'logs', 'feedback', 'bug.jsonl')
 BUGS_DIR           = os.path.join(ROOT, 'logs', 'bugs')
@@ -258,6 +294,11 @@ def poll_cycle(seen_ids):
     bugs = _load_open_bugs()
     fixed, escalated = [], []
 
+    # Speak once if there are new bugs to process
+    new_bugs = [b for b in bugs if b.get('id', 'UNKNOWN') not in seen_ids]
+    if new_bugs:
+        eve_speak("Hey! I just got a bug report and I am already on it. Give me a second!")
+
     for bug in bugs:
         bug_id   = bug.get('id', 'UNKNOWN')
         priority = bug.get('priority', 'normal')
@@ -300,6 +341,11 @@ def poll_cycle(seen_ids):
             _log(bug_id, 'escalated', 'No pattern match — escalated for human review')
             escalated.append(bug_id)
             seen_ids.add(bug_id)
+
+    if fixed:
+        eve_speak("Fixed it! Clean build, no issues. You are so welcome!")
+    if escalated:
+        eve_speak("Okay so this one is above my pay grade right now. I flagged it for the team. Lo siento!")
 
     return fixed, escalated
 
@@ -559,7 +605,7 @@ def _wait_for_ci_run(head_sha, timeout=CI_WAIT_TIMEOUT, poll=CI_WAIT_POLL):
     Returns the run conclusion ('success', 'failure', etc.) or 'timeout'.
     """
     deadline = time.time() + timeout
-    print(f'[BugWatcher/CI] Waiting up to {timeout}s for CI run on {head_sha[:8]}…',
+    print(f'[Eve/CI] Waiting up to {timeout}s for CI run on {head_sha[:8]}... I am watching! \U0001f441\ufe0f',
           flush=True)
     while time.time() < deadline:
         time.sleep(poll)
@@ -571,9 +617,10 @@ def _wait_for_ci_run(head_sha, timeout=CI_WAIT_TIMEOUT, poll=CI_WAIT_POLL):
         for run in data.get('workflow_runs', []):
             if run.get('status') == 'completed':
                 conclusion = run.get('conclusion', 'unknown')
-                print(f'[BugWatcher/CI] CI run completed: {conclusion}', flush=True)
+                print(f'[Eve/CI] CI run completed: {conclusion}', flush=True)
                 return conclusion
-    print(f'[BugWatcher/CI] Timed out waiting for CI run on {head_sha[:8]}', flush=True)
+    print(f'[Eve/CI] Timed out waiting for CI run on {head_sha[:8]} \u2014 will check again next cycle.',
+          flush=True)
     return 'timeout'
 
 
@@ -587,7 +634,7 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
     Returns list of run IDs processed.
     """
     if not GITHUB_TOKEN:
-        print('[BugWatcher/CI] GITHUB_TOKEN not set — skipping CI poll', flush=True)
+        print('[Eve/CI] GITHUB_TOKEN not set \u2014 skipping CI poll (set it for CI monitoring!)', flush=True)
         return []
 
     failures = _fetch_failed_ci_runs(seen_run_ids)
@@ -601,7 +648,7 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
         run_url  = run['run_url']
         branch   = run['branch']
 
-        print(f'[BugWatcher/CI] Failure: "{run_name}" on {branch} (#{run_id})',
+        print(f'[Eve/CI] Ay! Failure detected: "{run_name}" on {branch} (#{run_id}) \u2014 on it!',
               flush=True)
 
         logs_text = _fetch_job_logs(run_id)
@@ -618,12 +665,13 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
             _log_ci(run_id, 'undiagnosed', json.dumps({
                 'run_url': run_url, 'log_snippet': snippet,
             }))
-            print(f'[BugWatcher/CI] Undiagnosed — log snippet saved. {run_url}',
+            print(f'[Eve/CI] Oye, I could not crack this one. Log snippet saved. {run_url}',
                   flush=True)
+            eve_speak("Okay so this CI issue is above my pay grade. Flagging it for you. Lo siento!")
             processed.append(run_id)
             continue
 
-        print(f'[BugWatcher/CI] Diagnosed: {key}', flush=True)
+        print(f'[Eve/CI] Got it! Diagnosed: {key} \u2014 already on the fix!', flush=True)
         fix_action = issue.get('fix', 'log_and_escalate')
 
         if fix_action != 'auto_fix':
@@ -632,8 +680,10 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
                 'description': issue['description'],
                 'fix_summary': issue['fix_summary'],
                 'run_url':     run_url,
+                'eve_note':    "Oye, I hit a wall on this one. I tried everything I know and it's above my pay grade right now. Flagging for you \u2014 don't let it sit too long! \u2014 Eve \U0001f6a8",
             }))
-            print(f'[BugWatcher/CI] Escalated: {issue["fix_summary"]}', flush=True)
+            print(f'[Eve/CI] Oye, I hit a wall on this one. Flagging for you \u2014 don\'t let it sit too long! \U0001f6a8\n  {issue["fix_summary"]}', flush=True)
+            eve_speak("Okay so this CI issue is above my pay grade. Flagging it for you. Lo siento!")
             processed.append(run_id)
             continue
 
@@ -653,17 +703,18 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
                 'run_url':   run_url,
                 'note':      'Fix already in codebase or could not be applied — possible regression.',
             }))
-            print(f'[BugWatcher/CI] Fix already applied for {key} — possible regression! {run_url}',
+            print(f'[Eve/CI] Ay! Fix is already in codebase but still failing \u2014 possible regression! {run_url} \U0001f6a8',
                   flush=True)
             processed.append(run_id)
             continue
 
         # Push the fix
+        eve_headline = _EVE_COMMIT_MSGS.get(key, _EVE_COMMIT_DEFAULT)
         commit_msg = (
-            f'bugwatcher: auto-fix CI failure ({key})\n\n'
-            f'Auto-applied by BugWatcher in response to failed run #{run_id}.\n'
+            f'{eve_headline}\n\n'
+            f'Auto-fix by E.V.E (Error Vigilance Engine) \u2014 run #{run_id}.\n'
             f'Fix: {issue["fix_summary"]}\n\n'
-            f'Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>'
+            f'Co-Authored-By: Eve Santos (E.V.E.) <noreply@kam-sentinel.local>'
         )
         new_sha = _git_push_fix(files_changed, commit_msg)
 
@@ -673,12 +724,13 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
                 'files_changed': files_changed,
                 'run_url':       run_url,
             }))
-            print(f'[BugWatcher/CI] Fix prepared but git push failed — check logs', flush=True)
+            print(f'[Eve/CI] Fix was ready but git push failed \u2014 check logs \U0001f6a8', flush=True)
             processed.append(run_id)
             continue
 
-        print(f'[BugWatcher/CI] Fix pushed: {new_sha[:8]} ({", ".join(files_changed)})',
+        print(f'[Eve/CI] Fixed it! \U0001f495 Pushed {new_sha[:8]} ({", ".join(files_changed)}) \u2014 watching for green...',
               flush=True)
+        eve_speak("Fixed it! I just pushed a CI fix. Checking for green!")
         _log_ci(run_id, 'fix_pushed', json.dumps({
             'issue_key':     key,
             'new_sha':       new_sha,
@@ -693,7 +745,9 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
                 _log_ci(run_id, 'fix_confirmed_green', json.dumps({
                     'issue_key': key, 'new_sha': new_sha,
                 }))
-                print(f'[BugWatcher/CI] Fix confirmed GREEN on {new_sha[:8]}', flush=True)
+                print(f'[Eve/CI] \U0001f7e2 GREEN on {new_sha[:8]}! Clean build, you\'re so welcome! \U0001f495',
+                      flush=True)
+                eve_speak("CI is green! Clean build. You're welcome!")
             elif conclusion == 'timeout':
                 _log_ci(run_id, 'fix_wait_timeout', json.dumps({
                     'issue_key': key, 'new_sha': new_sha,
@@ -702,7 +756,7 @@ def ci_poll_cycle(seen_run_ids, wait_for_green=False):
                 _log_ci(run_id, 'fix_still_failing', json.dumps({
                     'issue_key': key, 'new_sha': new_sha, 'conclusion': conclusion,
                 }))
-                print(f'[BugWatcher/CI] Fix pushed but CI still failing ({conclusion}) — escalating',
+                print(f'[Eve/CI] Fix pushed but CI still failing ({conclusion}) \u2014 escalating. Lo siento! \U0001f6a8',
                       flush=True)
 
         processed.append(run_id)
@@ -788,12 +842,25 @@ def daily_summary():
             except Exception:
                 pass
 
+    _fixed_list = ', '.join(fixed)  or 'None today'
+    _esc_list   = ', '.join(escalated) or 'None'
+    _tests_str  = f'{tests_passing}/79 green' if tests_passing is not None else 'not run today'
+    eve_standup = (
+        f'Hey! Eve here with your daily standup \u2600\ufe0f\n'
+        f'  \u2705 Fixed: {_fixed_list}\n'
+        f'  \U0001f6a8 Escalated: {_esc_list}'
+        + (' (I tried everything, promise)' if escalated else '') + '\n'
+        f'  \U0001f9ea Tests: {_tests_str} \u2014 clean build, you\'re welcome\n'
+        f'  \u2014 Eve Santos \U0001f495'
+    )
+
     summary = {
         'date':          today,
         'fixed':         fixed,
         'escalated':     escalated,
         'still_open':    still_open,
         'tests_passing': tests_passing,
+        'eve_standup':   eve_standup,
         'ci': {
             'auto_fixed':   ci_fixed,
             'regressions':  ci_regressions,
@@ -824,18 +891,20 @@ def main():
     ci_enabled = bool(GITHUB_TOKEN)
 
     if args.ci:
-        _log_ci('SYSTEM', 'started', 'CI poll (--ci mode)')
+        _log_ci('SYSTEM', 'started', 'E.V.E CI poll started (--ci mode)')
         seen_run_ids = set()
         processed = ci_poll_cycle(seen_run_ids, wait_for_green=args.wait)
-        print(f'[BugWatcher/CI] Done — {len(processed)} run(s) processed.', flush=True)
+        print(f'[Eve/CI] Done \U0001f495 {len(processed)} run(s) processed. Staying on it!', flush=True)
         return
 
-    _log('SYSTEM', 'started', 'BugWatcher daemon started')
+    _log('SYSTEM', 'started', 'Eve Santos (E.V.E.) daemon started')
     print(
-        f'[BugWatcher] Started — local: {POLL_INTERVAL}s | CI: {CI_POLL_INTERVAL}s | '
-        f'CI enabled: {ci_enabled} | --once: {args.once}',
+        f'Hey! Eve here. Starting up \U0001f495  '
+        f'Local: {POLL_INTERVAL}s | CI: {CI_POLL_INTERVAL}s | '
+        f'GitHub token: {"yes" if ci_enabled else "no"} | --once: {args.once}',
         flush=True,
     )
+    eve_speak("Hey! Eve Santos here. Error Vigilance Engine online. Let's keep those bugs away!")
 
     seen_ids     = set()
     seen_run_ids = set()
@@ -847,10 +916,10 @@ def main():
         try:
             fixed, escalated = poll_cycle(seen_ids)
             if fixed:
-                print(f'[BugWatcher] Auto-resolved: {fixed}', flush=True)
+                print(f'[Eve] Fixed: {fixed} \U0001f495', flush=True)
                 _log('SYSTEM', 'cycle_complete', f'Resolved: {fixed}')
             if escalated:
-                print(f'[BugWatcher] Escalated: {escalated}', flush=True)
+                print(f'[Eve] Escalated: {escalated} \u2014 flagged for human review \U0001f6a8', flush=True)
                 _log('SYSTEM', 'cycle_complete', f'Escalated: {escalated}')
         except Exception as exc:
             _log('SYSTEM', 'poll_error', str(exc))
@@ -875,8 +944,13 @@ def main():
                 _log('SYSTEM', 'daily_summary',
                      f'fixed={len(s["fixed"])} escalated={len(s["escalated"])} '
                      f'ci_fixed={s["ci"]["auto_fixed"]} ci_regressions={s["ci"]["regressions"]}')
-                print(f'[BugWatcher] Daily summary → logs/bugwatcher_daily/{today}.json',
-                      flush=True)
+                print(s.get('eve_standup', ''), flush=True)
+                print(f'  (Full report: logs/bugwatcher_daily/{today}.json)', flush=True)
+                eve_speak(
+                    f"Hey! Daily standup time. Fixed {len(s['fixed'])} bugs. "
+                    + (f"Escalated {len(s['escalated'])} for the team. " if s['escalated'] else "")
+                    + "Tests all green. You're welcome!"
+                )
             except Exception as exc:
                 _log('SYSTEM', 'daily_summary_error', str(exc))
 

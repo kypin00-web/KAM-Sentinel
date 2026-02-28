@@ -252,6 +252,51 @@ header {
 .diag-autofix:hover { opacity:.85; }
 .diag-autofix:disabled { opacity:.4; cursor:not-allowed; }
 
+/* ── EVE SANTOS — 404 POPUP ──────────────────────────────────────────────── */
+#eve-popup {
+  display:none; position:fixed; bottom:28px; right:28px; z-index:99998;
+  align-items:flex-end; gap:10px; pointer-events:none;
+}
+#eve-popup.visible {
+  display:flex; pointer-events:all;
+  animation: eveSlideIn .4s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes eveSlideIn {
+  from { transform:translateY(24px); opacity:0; }
+  to   { transform:translateY(0);    opacity:1; }
+}
+#eve-avatar {
+  flex-shrink:0; margin-bottom:6px;
+  filter: drop-shadow(0 0 10px rgba(255,107,157,.45));
+}
+#eve-bubble {
+  background: linear-gradient(135deg,rgba(10,14,23,.97),rgba(15,21,32,.97));
+  border:1px solid rgba(255,107,157,.5); border-radius:12px 12px 2px 12px;
+  padding:14px 16px; max-width:280px;
+  box-shadow: 0 0 32px rgba(255,107,157,.18), 0 8px 32px rgba(0,0,0,.7);
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+}
+#eve-name {
+  font-family:'Share Tech Mono',monospace; font-size:.58rem; letter-spacing:2px;
+  color:#ff6b9d; margin-bottom:8px;
+}
+#eve-msg { font-size:.88rem; color:var(--white); line-height:1.5; margin-bottom:12px; }
+#eve-actions { display:flex; gap:8px; }
+#eve-fix-btn {
+  background:linear-gradient(135deg,#ff6b9d,#ff4d7e); border:none; color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:.65rem; font-weight:bold;
+  padding:6px 14px; border-radius:4px; cursor:pointer; transition:opacity .2s;
+}
+#eve-fix-btn:hover { opacity:.85; }
+#eve-fix-btn:disabled { opacity:.5; cursor:not-allowed; }
+#eve-dismiss-btn {
+  background:none; border:1px solid rgba(255,255,255,.15); color:var(--dim2);
+  font-family:'Share Tech Mono',monospace; font-size:.65rem;
+  padding:6px 12px; border-radius:4px; cursor:pointer; transition:all .2s;
+}
+#eve-dismiss-btn:hover { border-color:var(--text); color:var(--text); }
+#eve-status { font-size:.75rem; margin-top:8px; color:#ff6b9d; min-height:1em; }
+
 /* ── LAYOUT ──────────────────────────────────────────────────────────────── */
 main { padding:20px 24px; max-width:1600px; margin:0 auto; }
 .section-label {
@@ -1858,6 +1903,61 @@ function toggleBenchHistory() {
     }
   });
 })();
+
+// ── Eve Santos — 404 Watchdog ─────────────────────────────────────────────
+let _eveCooldown = 0;
+let _eve404Url   = '';
+const _EVE_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown per popup
+
+// Intercept all window.fetch calls — show Eve popup on any /api/ 404
+(function() {
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = async function(url, opts) {
+    const r = await _origFetch(url, opts);
+    if (r.status === 404 && typeof url === 'string' && url.startsWith('/api/')) {
+      eveShow404(url);
+    }
+    return r;
+  };
+})();
+
+function eveShow404(url) {
+  const now = Date.now();
+  if (now - _eveCooldown < _EVE_COOLDOWN_MS) return;
+  _eveCooldown = now;
+  _eve404Url = url;
+  const pop = document.getElementById('eve-popup');
+  const status = document.getElementById('eve-status');
+  const fixBtn = document.getElementById('eve-fix-btn');
+  if (!pop) return;
+  if (status) status.textContent = '';
+  if (fixBtn) { fixBtn.disabled = false; fixBtn.textContent = 'Yes, fix it! \uD83D\uDC95'; }
+  pop.classList.add('visible');
+}
+
+function eveDismiss() {
+  const pop = document.getElementById('eve-popup');
+  if (pop) pop.classList.remove('visible');
+}
+
+async function eveFix() {
+  const btn    = document.getElementById('eve-fix-btn');
+  const status = document.getElementById('eve-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'On it...'; }
+  try {
+    const r = await fetch('/api/eve/fix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: _eve404Url, error_code: 404, context: 'dashboard_404' }),
+    });
+    const d = await r.json();
+    if (status) { status.textContent = d.message || "I'm on it! \uD83D\uDC95"; }
+    setTimeout(eveDismiss, 3500);
+  } catch(e) {
+    if (status) { status.textContent = 'Could not reach server \u2014 try again?'; status.style.color = 'var(--red)'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry \uD83D\uDC95'; }
+  }
+}
 </script>
 <!-- ── WHAT'S NEW WALKTHROUGH ─────────────────────────────────────────── -->
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
@@ -1903,6 +2003,27 @@ function toggleBenchHistory() {
       <button id="wn-skip" onclick="wnDismiss()">Skip</button>
       <span id="wn-progress"></span>
     </div>
+  </div>
+</div>
+<!-- ── EVE SANTOS — 404 POPUP ─────────────────────────────────────────── -->
+<div id="eve-popup" role="alertdialog" aria-label="Eve Santos error alert">
+  <div id="eve-avatar">
+    <svg width="42" height="46" viewBox="0 0 42 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M21 2 L39 9.5 L39 26 C39 36 30 43 21 46 C12 43 3 36 3 26 L3 9.5 Z"
+            fill="rgba(255,107,157,.15)" stroke="#ff6b9d" stroke-width="1.5"/>
+      <text x="21" y="31" text-anchor="middle"
+            font-family="'Share Tech Mono',monospace"
+            font-size="17" font-weight="bold" fill="#ff6b9d">E</text>
+    </svg>
+  </div>
+  <div id="eve-bubble">
+    <div id="eve-name">E.V.E &#8212; Eve Santos</div>
+    <div id="eve-msg">Ay, that&#39;s not supposed to happen!<br>Want me to fix that? &#x1F495;</div>
+    <div id="eve-actions">
+      <button id="eve-fix-btn" onclick="eveFix()">Yes, fix it! &#x1F495;</button>
+      <button id="eve-dismiss-btn" onclick="eveDismiss()">Dismiss</button>
+    </div>
+    <div id="eve-status"></div>
   </div>
 </div>
 </body>
