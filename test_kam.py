@@ -918,11 +918,11 @@ try:
     else:
         fail("sys._MEIPASS not used -- ASSET_DIR wrong in frozen .exe")
 
-    # DATA_DIR uses sys.executable
-    if 'os.path.dirname(sys.executable)' in src:
-        ok("DATA_DIR = os.path.dirname(sys.executable) -- persistent data written next to .exe")
+    # DATA_DIR uses %APPDATA% when frozen (not sys._MEIPASS temp dir, not write-protected Program Files)
+    if "os.environ.get('APPDATA'" in src or 'APPDATA' in src:
+        ok("DATA_DIR uses %APPDATA% when frozen -- writable without admin, survives Program Files install")
     else:
-        fail("DATA_DIR not using sys.executable -- logs/backups will be lost in temp dir when frozen")
+        fail("DATA_DIR not using %APPDATA% -- will fail with PermissionError when installed to Program Files")
 
     # send_from_directory uses ASSET_DIR (not '.')
     if 'send_from_directory(ASSET_DIR' in src:

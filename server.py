@@ -1209,8 +1209,7 @@ def api_eve_calibrate():
 def api_eve_bluetooth():
     try:
         if sys.platform == 'win32':
-            subprocess.Popen(['start', 'ms-settings:bluetooth'], shell=True,
-                             creationflags=subprocess.CREATE_NO_WINDOW)
+            os.startfile('ms-settings:bluetooth')  # os.startfile avoids subprocess entirely
         elif sys.platform == 'darwin':
             subprocess.Popen(['open', 'x-apple.systempreferences:com.apple.preferences.Bluetooth'])
         else:
