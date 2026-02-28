@@ -1,9 +1,9 @@
 {
-  "version": "1.5.10",
-  "build": 20,
+  "version": "1.5.11",
+  "build": 21,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.10: BugWatcher as CI service, rate limit test fix, _guard() wired to api_stats.",
+  "changelog": "v1.5.11: Section 15 live URL checks in test suite, scripts/check_urls.py standalone validator.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,8 +12,7 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: .github/workflows/bugwatcher.yml — triggers on deploy workflow failure, runs BugWatcher --ci --wait on GitHub's servers, pushes auto-fixes, waits for green",
-    "FIX: server.py _guard() now called from api_stats() — rate limiter was defined but never hooked into any endpoint",
-    "FIX: test_kam.py rate limit test now pre-fills _rl bucket to RL_MAX, then verifies 1 more request returns 429 — no longer timing-dependent on 1-second sliding window"
+    "NEW: test_kam.py Section 15 — live URL checks (GitHub Pages landing, version.json, releases/latest, Setup.exe); skips gracefully if no internet",
+    "NEW: scripts/check_urls.py — standalone GREEN/RED URL validator, logs to logs/url_checks.jsonl"
   ]
 }

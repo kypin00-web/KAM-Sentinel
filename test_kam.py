@@ -1045,6 +1045,89 @@ else:
     fail(".github/workflows/deploy.yml not found")
 
 
+# =============================================================================
+# Section 15: Live URL Checks
+# =============================================================================
+import urllib.request as _ureq, urllib.error as _uerr
+section("15. Live URL Checks")
+
+_LIVE_URLS = [
+    ('GitHub Pages — landing page',    'https://kypin00-web.github.io/KAM-Sentinel',                                                    None),
+    ('GitHub Pages — version.json',    'https://kypin00-web.github.io/KAM-Sentinel/version.json',                                       'json'),
+    ('GitHub Releases — latest page',  'https://github.com/kypin00-web/KAM-Sentinel/releases/latest',                                   None),
+    ('GitHub Releases — Setup.exe',    'https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe',   None),
+]
+
+def _url_ok(url, validate=None, timeout=12):
+    """HEAD the URL (GET fallback on 405). Returns (ok, code, extra)."""
+    import json as _json
+    body = None
+    try:
+        req = _ureq.Request(url, method='HEAD',
+                            headers={'User-Agent': 'KAM-Sentinel-Test/1.0'})
+        with _ureq.urlopen(req, timeout=timeout) as r:
+            code = r.getcode()
+    except _uerr.HTTPError as e:
+        if e.code == 405:
+            req = _ureq.Request(url, headers={'User-Agent': 'KAM-Sentinel-Test/1.0'})
+            try:
+                with _ureq.urlopen(req, timeout=timeout) as r:
+                    code = r.getcode()
+                    if validate == 'json':
+                        body = r.read(32768).decode('utf-8', errors='replace')
+            except _uerr.HTTPError as e2:
+                return False, e2.code, None
+        else:
+            return False, e.code, None
+    except Exception:
+        return None, None, None   # no internet / DNS failure → skip
+
+    if validate == 'json' and body is None:
+        try:
+            req2 = _ureq.Request(url, headers={'User-Agent': 'KAM-Sentinel-Test/1.0'})
+            with _ureq.urlopen(req2, timeout=timeout) as r2:
+                body = r2.read(32768).decode('utf-8', errors='replace')
+        except Exception:
+            body = None
+
+    json_ok = None
+    if validate == 'json':
+        try:
+            import json as _json2; _json2.loads(body); json_ok = True
+        except Exception:
+            json_ok = False
+
+    return (code == 200), code, json_ok
+
+_has_internet = None   # determined lazily from first URL result
+
+for _label, _url, _validate in _LIVE_URLS:
+    _ok, _code, _jok = _url_ok(_url, validate=_validate)
+    if _ok is None:
+        # network failure / no internet
+        if _has_internet is None:
+            warn(f"No internet — skipping live URL checks (CI offline or firewall blocked)")
+            _has_internet = False
+        # skip remaining checks silently — already warned
+        break
+    _has_internet = True
+    _extra = ''
+    if _jok is True:
+        _extra = ' (JSON valid)'
+    elif _jok is False:
+        _extra = ' (JSON INVALID)'
+    if _ok and _jok is not False:
+        ok(f"{_label} -> HTTP {_code}{_extra}")
+    elif _ok and _jok is False:
+        fail(f"{_label} -> HTTP {_code} but JSON is invalid")
+    else:
+        fail(f"{_label} -> HTTP {_code or 'ERR'} (expected 200)")
+
+if _has_internet is None:
+    # LIVE_URLS list was empty (shouldn't happen)
+    warn("No URLs configured for live URL check section")
+
+
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

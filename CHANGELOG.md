@@ -2,6 +2,15 @@
 
 ---
 
+## v1.5.11 — 2026-02-27
+
+### End-to-End URL Validation
+
+- **`test_kam.py` Section 15 — Live URL Checks** — 4 URLs verified on every test run: GitHub Pages landing, GitHub Pages `version.json` (JSON-validated), GitHub Releases latest page, `KAM_Sentinel_Setup.exe` download. Skips gracefully with a single `[WARN]` if the machine has no internet (CI offline or firewall).
+- **`scripts/check_urls.py`** — standalone validator; prints GREEN `[OK]` / RED `[FAIL]` per URL with HTTP code and response time. Logs results to `logs/url_checks.jsonl`. Checks all 6 public URLs (landing, version.json, releases page, Setup.exe, Windows.exe, Mac binary).
+
+---
+
 ## v1.5.10 — 2026-02-27
 
 ### BugWatcher as a CI Service
