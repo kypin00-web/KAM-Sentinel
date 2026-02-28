@@ -2,6 +2,36 @@
 
 ---
 
+## v1.5.14 — 2026-02-28
+
+### Critical Installer Fix — Program Files Write Permission
+
+**Root cause:** When the NSIS installer places `KAM_Sentinel_Windows.exe` in `C:\Program Files\KAM Sentinel\`, `DATA_DIR` was set to `os.path.dirname(sys.executable)` — the same write-protected directory. Standard Windows users can't write there without admin rights. `os.makedirs()` fires at module import time (before Flask starts), so with `--noconsole` the exe silently crashed. A brand new user downloading the installer would see nothing — no dashboard, no error, no explanation.
+
+**Fix:** When running as a PyInstaller frozen exe, `DATA_DIR` now points to `%APPDATA%\KAM Sentinel\` — the standard location for Windows user data, always writable without elevation.
+
+```
+Before (broken for installed users):
+  DATA_DIR = os.path.dirname(sys.executable)
+  → C:\Program Files\KAM Sentinel\  (PermissionError on first launch)
+
+After (correct):
+  DATA_DIR = %APPDATA%\KAM Sentinel\
+  → C:\Users\<name>\AppData\Roaming\KAM Sentinel\  (always writable)
+```
+
+- `logs/`, `profiles/`, `backups/` now created under `%APPDATA%\KAM Sentinel\` when installed
+- Dev mode (running `python server.py`) is unchanged — DATA_DIR stays next to `server.py`
+- Portable mode (running the exe from Downloads / USB) also uses `%APPDATA%` — user data is preserved even if the exe is moved or deleted
+
+**Everything else confirmed correct** — a full installer audit found no other missing files:
+- `dashboard.html`, `thresholds.py`, `assets/icon.ico` all bundled via `--add-data` ✓
+- `server.py` bundled by PyInstaller import tracing from `launch.py` ✓
+- All Python deps (flask, psutil, GPUtil, wmi, pywin32) bundled ✓
+- `scripts/`, `assets/kam_logo.svg` — not needed at runtime ✓
+
+---
+
 ## v1.5.13 — 2026-02-27
 
 ### Wes Mode — Auto-Tune Frequency Calibration + Identity Check

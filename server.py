@@ -12,7 +12,12 @@ import psutil, os, json, time, platform, datetime, threading, sys, subprocess, u
 # ── Paths ─────────────────────────────────────────────────────────────────────
 if getattr(sys, 'frozen', False):
     ASSET_DIR = sys._MEIPASS
-    DATA_DIR  = os.path.dirname(sys.executable)
+    # Use %APPDATA%\KAM Sentinel for user data — Program Files is write-protected
+    # without admin rights, so we can't store logs/profiles/backups next to the exe
+    # when installed via the NSIS installer.
+    DATA_DIR  = os.path.join(
+        os.environ.get('APPDATA', os.path.expanduser('~')), 'KAM Sentinel'
+    )
 else:
     ASSET_DIR = DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -122,7 +127,7 @@ ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 ACCESSIBILITY_FILE = os.path.join(PROF_DIR, 'accessibility.json')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.13'
+VER               = '1.5.14'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 

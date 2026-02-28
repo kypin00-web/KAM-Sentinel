@@ -131,10 +131,11 @@ Warnings are dismissible banners (yellow=warning, red=critical). Auto re-enable 
 
 ## Distribution / PyInstaller Notes
 - Entry point for the `.exe` is `launch.py`, not `server.py`
-- `sys._MEIPASS` is the bundle temp dir; `os.path.dirname(sys.executable)` is the working dir next to the `.exe`
+- `ASSET_DIR = sys._MEIPASS` — bundle temp dir where `--add-data` files land (`dashboard.html`, `thresholds.py`, `icon.ico`)
+- `DATA_DIR = %APPDATA%\KAM Sentinel` when frozen — **not** next to the exe. Program Files is write-protected for non-admin users; `%APPDATA%` is always writable. Dev mode (`python server.py`) keeps `DATA_DIR` next to the source file.
 - `dashboard.html` and `thresholds.py` are bundled via `--add-data` and accessed at runtime from `sys._MEIPASS`
 - `subprocess.Popen` is monkey-patched at startup to add `CREATE_NO_WINDOW` when running frozen — prevents CMD window flash from nvidia-smi
-- `backups/`, `logs/`, `profiles/`, and `version.json` are created next to the `.exe` on first launch (not inside the bundle)
+- `backups/`, `logs/`, `profiles/` are auto-created under `DATA_DIR` on first launch via `os.makedirs(d, exist_ok=True)`
 
 ---
 
