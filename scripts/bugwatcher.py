@@ -4,20 +4,23 @@ BugWatcher — KAM Sentinel background auto-fix daemon
 
 Polls logs/feedback/bug.jsonl for open bugs, matches against known issues,
 auto-resolves or escalates, runs the test suite to verify fixes, and generates
-daily summaries. Also monitors GitHub Actions CI runs for failures and
-attempts auto-diagnosis and fix logging.
+daily summaries.
+
+Also monitors GitHub Actions CI runs for failures: fetches job logs, diagnoses
+against CI_KNOWN_ISSUES, applies safe auto-fixes, pushes the fix commit, waits
+for the new CI run to complete, and logs the outcome.
 
 Usage:
     python scripts/bugwatcher.py          # run in foreground (Ctrl+C to stop)
-    python scripts/bugwatcher.py --once   # single local poll cycle then exit (CI/testing)
+    python scripts/bugwatcher.py --once   # single local bug poll cycle then exit
     python scripts/bugwatcher.py --ci     # single CI poll cycle then exit
 
 Environment:
-    GITHUB_TOKEN   GitHub personal access token (read:actions + contents scope)
-                   Required for CI monitoring. Automatically available in CI.
+    GITHUB_TOKEN   GitHub personal access token with contents:write + actions:read
+                   Required for CI monitoring. Auto-available in GitHub Actions.
 """
 
-import json, os, sys, time, datetime, subprocess, argparse
+import json, os, sys, time, datetime, subprocess, argparse, re
 import urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,19 +32,30 @@ WATCHER_LOG        = os.path.join(ROOT, 'logs', 'bugwatcher.jsonl')
 CI_LOG             = os.path.join(ROOT, 'logs', 'ci_watcher.jsonl')
 DAILY_DIR          = os.path.join(ROOT, 'logs', 'bugwatcher_daily')
 FEATURES_BACKLOG   = os.path.join(ROOT, 'logs', 'features', 'backlog.jsonl')
+DEPLOY_YML         = os.path.join(ROOT, '.github', 'workflows', 'deploy.yml')
+TEST_KAM           = os.path.join(ROOT, 'test_kam.py')
 
 POLL_INTERVAL    = 60   # seconds between local bug poll cycles
 CI_POLL_INTERVAL = 300  # seconds between GitHub Actions poll cycles (5 min)
+CI_WAIT_TIMEOUT  = 600  # seconds to wait for a new CI run after pushing a fix
+CI_WAIT_POLL     = 30   # seconds between checks while waiting for new CI run
 
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
 GITHUB_REPO  = 'kypin00-web/KAM-Sentinel'
 
+# Safe known modules → pip package mapping (used by _fix_missing_module)
+_MODULE_TO_PKG = {
+    'flask':    'flask',
+    'psutil':   'psutil',
+    'gputil':   'GPUtil',
+    'GPUtil':   'GPUtil',
+    'wmi':      'wmi pywin32',
+    'win32api': 'wmi pywin32',
+    'PIL':      'pillow',
+}
+
 
 # ── Known local issue patterns ─────────────────────────────────────────────────
-# Each entry: patterns (list of substrings to match in lowercased message),
-# action ('resolve' | 'resolve_if_old' | 'escalate'),
-# versions_fixed (list, for resolve_if_old),
-# fix_summary (human-readable resolution note).
 KNOWN_ISSUES = {
     'test_data_sanitization': {
         'patterns': ['crash line2 line3end'],
@@ -49,7 +63,7 @@ KNOWN_ISSUES = {
         'fix_summary': 'Test data from sanitization test suite — not a real user report.',
     },
     'startup_crash_v140': {
-        'patterns': ['crash', 'startup', 'not working', "won't start", 'fails to start', 'won\'t launch'],
+        'patterns': ['crash', 'startup', 'not working', "won't start", 'fails to start', "won't launch"],
         'action': 'resolve_if_old',
         'versions_fixed': ['1.4.1'],
         'fix_summary': 'Fixed in v1.4.1: ASSET_DIR/DATA_DIR path split corrected for frozen .exe; '
@@ -66,9 +80,8 @@ KNOWN_ISSUES = {
 
 
 # ── Known CI failure patterns ──────────────────────────────────────────────────
-# Matched against the concatenated job log text (lowercased).
-# fix: 'already_applied' = known-fixed regression (log + escalate)
-#      'log_and_escalate' = no safe auto-fix available (log + escalate)
+# fix: 'auto_fix'        = safe to patch + push automatically
+#      'log_and_escalate' = no safe automated change; escalate for human review
 CI_KNOWN_ISSUES = {
     'nsis_not_in_path': {
         'patterns': [
@@ -77,12 +90,11 @@ CI_KNOWN_ISSUES = {
             "'makensis' is not recognized",
             'makensis: command not found',
         ],
-        'description': 'NSIS not on PATH in windows-latest runner',
-        'fix': 'already_applied',
+        'description': 'NSIS makensis not found on CI runner PATH',
+        'fix': 'auto_fix',
         'fix_summary': (
-            'NSIS PATH fix already applied in deploy.yml (c5263f0): '
-            '"C:\\Program Files (x86)\\NSIS" added to $env:GITHUB_PATH before makensis call. '
-            'If this fires again, check for workflow file regression.'
+            'Apply choco install nsis + hardcoded full path fix to deploy.yml. '
+            'Ensures makensis is always found regardless of PATH state.'
         ),
     },
     'missing_python_dep': {
@@ -93,27 +105,27 @@ CI_KNOWN_ISSUES = {
             'cannot import name',
         ],
         'description': 'Python dependency missing in CI environment',
-        'fix': 'log_and_escalate',
-        'fix_summary': (
-            'CI is missing a Python dependency. '
-            'Check the pip install line in deploy.yml and add the missing package.'
-        ),
+        'fix': 'auto_fix',
+        'fix_summary': 'Add missing package to pip install line in deploy.yml.',
+    },
+    'test_suite_encoding_fp': {
+        'patterns': [
+            "open() call(s) missing encoding: with open(",
+            "missing encoding: with open(",
+        ],
+        'description': 'Test suite flagging binary-mode open() as missing encoding (false positive)',
+        'fix': 'auto_fix',
+        'fix_summary': 'Add binary-mode regex exclusion to encoding check in test_kam.py.',
     },
     'test_suite_failed': {
         'patterns': [
             '[fail]',
-            'assertion error',
             'assertionerror',
             'tests failed',
-            'failed:',
-            'error: test',
         ],
-        'description': 'Test suite failure detected in CI',
+        'description': 'Test suite failure in CI',
         'fix': 'log_and_escalate',
-        'fix_summary': (
-            'Test suite failed in CI. '
-            'Run `python test_kam.py` locally to reproduce and fix before pushing.'
-        ),
+        'fix_summary': 'Test suite failed — run python test_kam.py locally to reproduce.',
     },
     'pyinstaller_build_failed': {
         'patterns': [
@@ -121,27 +133,19 @@ CI_KNOWN_ISSUES = {
             'build failed',
             'pyinstaller failed',
             'failed to collect',
-            'cannot find',
         ],
         'description': 'PyInstaller build failure',
         'fix': 'log_and_escalate',
-        'fix_summary': (
-            'PyInstaller build failed in CI. '
-            'Check --add-data and --hidden-import entries in deploy.yml for missing files or deps.'
-        ),
+        'fix_summary': 'Check --add-data and --hidden-import in deploy.yml.',
     },
     'actions_checkout_failed': {
         'patterns': [
             'error: process completed with exit code',
-            'error: the process',
             'checkout failed',
         ],
         'description': 'GitHub Actions checkout or runner step failed',
         'fix': 'log_and_escalate',
-        'fix_summary': (
-            'An Actions step failed (possibly checkout or runner issue). '
-            'Check the run URL and re-trigger if transient.'
-        ),
+        'fix_summary': 'Likely a transient runner issue — check run URL and re-trigger.',
     },
 }
 
@@ -149,7 +153,6 @@ CI_KNOWN_ISSUES = {
 # ── Local bug helpers ──────────────────────────────────────────────────────────
 
 def _ver_tuple(v):
-    """Convert '1.4.0' → (1, 4, 0) for comparison."""
     try:
         return tuple(int(x) for x in str(v).strip().split('.')[:3])
     except Exception:
@@ -171,13 +174,16 @@ def _log(bug_id, action, result, tests_passing=None):
 
 
 def _run_tests():
-    """Run test_kam.py, return number of passing tests or None on error."""
+    """Run test_kam.py; return passing count (int) or None on error."""
     try:
         result = subprocess.run(
             [sys.executable, '-u', 'test_kam.py'],
-            capture_output=True, text=True, timeout=180, cwd=ROOT
+            capture_output=True, text=True, timeout=180, cwd=ROOT,
+            env={**os.environ, 'CI': 'true'},
         )
-        for line in result.stdout.splitlines():
+        # Strip ANSI codes before searching
+        clean = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        for line in clean.splitlines():
             stripped = line.strip()
             if stripped.startswith('Passed'):
                 return int(stripped.split(':')[1].strip())
@@ -205,7 +211,6 @@ def _load_open_bugs():
 
 
 def _rewrite_bug(bug_id, status, fix_summary, tests_passing=None):
-    """Update a single bug entry's status in-place by rewriting the file."""
     if not os.path.exists(FEEDBACK_BUG_FILE):
         return
     lines_out = []
@@ -240,7 +245,6 @@ def _escalate(bug):
 
 
 def _match(bug):
-    """Return (key, issue_dict) for the first matching known issue, else (None, None)."""
     msg = bug.get('message', '').lower()
     for key, issue in KNOWN_ISSUES.items():
         if any(p in msg for p in issue['patterns']):
@@ -251,11 +255,6 @@ def _match(bug):
 # ── Local poll cycle ───────────────────────────────────────────────────────────
 
 def poll_cycle(seen_ids):
-    """
-    One pass over open bugs.
-    Returns (fixed_ids, escalated_ids).
-    seen_ids is a set updated in-place to avoid re-processing.
-    """
     bugs = _load_open_bugs()
     fixed, escalated = [], []
 
@@ -279,8 +278,8 @@ def poll_cycle(seen_ids):
                 seen_ids.add(bug_id)
 
             elif action == 'resolve_if_old':
-                bug_ver   = _ver_tuple(bug.get('version', '0.0.0'))
-                fixed_in  = [_ver_tuple(v) for v in issue.get('versions_fixed', [])]
+                bug_ver  = _ver_tuple(bug.get('version', '0.0.0'))
+                fixed_in = [_ver_tuple(v) for v in issue.get('versions_fixed', [])]
                 if fixed_in and bug_ver < min(fixed_in):
                     tests_n = _run_tests() if priority == 'critical' else None
                     _rewrite_bug(bug_id, 'resolved', issue['fix_summary'], tests_n)
@@ -288,7 +287,6 @@ def poll_cycle(seen_ids):
                     fixed.append(bug_id)
                     seen_ids.add(bug_id)
                 else:
-                    # Bug version >= fix version — may still be happening; escalate
                     _escalate(bug)
                     _rewrite_bug(bug_id, 'escalated', 'Version >= fix version — requires human review')
                     _log(bug_id, 'escalated',
@@ -297,7 +295,6 @@ def poll_cycle(seen_ids):
                     seen_ids.add(bug_id)
 
         else:
-            # No matching known issue — escalate
             _escalate(bug)
             _rewrite_bug(bug_id, 'escalated', 'No matching known issue — requires human review')
             _log(bug_id, 'escalated', 'No pattern match — escalated for human review')
@@ -307,10 +304,130 @@ def poll_cycle(seen_ids):
     return fixed, escalated
 
 
-# ── GitHub Actions CI monitoring ───────────────────────────────────────────────
+# ── CI auto-fix functions ──────────────────────────────────────────────────────
+
+def _fix_nsis_path():
+    """
+    Ensure deploy.yml uses choco install nsis + hardcoded full path.
+    Returns list of changed files, or [] if already correct / unfixable.
+    """
+    if not os.path.exists(DEPLOY_YML):
+        return []
+    with open(DEPLOY_YML, encoding='utf-8') as f:
+        content = f.read()
+
+    already_ok = (
+        'choco install nsis -y' in content and
+        r'"C:\Program Files (x86)\NSIS\makensis.exe"' in content
+    )
+    if already_ok:
+        return []  # already correct — nothing to do
+
+    # Build the correct NSIS step block
+    correct_step = (
+        '    - name: Build NSIS installer\n'
+        '      run: |\n'
+        '        choco install nsis -y\n'
+        '        $ver = python -c "import json; print(json.load(open(\'version.json\'))[\'version\'])"\n'
+        '        & "C:\\Program Files (x86)\\NSIS\\makensis.exe" /DVER=$ver scripts\\installer.nsi\n'
+    )
+
+    # Replace any existing NSIS build step variant
+    patched = re.sub(
+        r'    - name: Build NSIS installer\n      run: \|.*?(?=\n    - |\Z)',
+        correct_step,
+        content,
+        flags=re.DOTALL,
+    )
+
+    # Also remove any stale "Add NSIS to PATH" step if it exists
+    patched = re.sub(
+        r'    - name: Add NSIS to PATH\n      run:.*?\n(?=    - )',
+        '',
+        patched,
+        flags=re.DOTALL,
+    )
+
+    if patched == content:
+        return []  # couldn't find the block to patch
+
+    with open(DEPLOY_YML, 'w', encoding='utf-8') as f:
+        f.write(patched)
+    return ['.github/workflows/deploy.yml']
+
+
+def _fix_missing_module(logs_text):
+    """
+    Parse a ModuleNotFoundError from logs, map to a pip package, and add it
+    to the pip install line in deploy.yml (if not already present).
+    Returns list of changed files, or [].
+    """
+    m = re.search(r"No module named '([^']+)'", logs_text, re.IGNORECASE)
+    if not m:
+        return []
+
+    raw_module = m.group(1).split('.')[0]  # top-level package name
+    pkg = _MODULE_TO_PKG.get(raw_module) or _MODULE_TO_PKG.get(raw_module.lower())
+    if not pkg:
+        return []  # unknown module — not safe to auto-add
+
+    if not os.path.exists(DEPLOY_YML):
+        return []
+    with open(DEPLOY_YML, encoding='utf-8') as f:
+        content = f.read()
+
+    if pkg in content:
+        return []  # already in the install list
+
+    # Add to the ubuntu pip install line (test gate job)
+    patched = re.sub(
+        r'(pip install flask psutil GPUtil pyinstaller)',
+        rf'\1 {pkg}',
+        content,
+        count=1,
+    )
+    if patched == content:
+        return []
+
+    with open(DEPLOY_YML, 'w', encoding='utf-8') as f:
+        f.write(patched)
+    return ['.github/workflows/deploy.yml']
+
+
+def _fix_encoding_false_positive():
+    """
+    Ensure the encoding check in test_kam.py excludes binary-mode open() calls.
+    Returns list of changed files, or [].
+    """
+    if not os.path.exists(TEST_KAM):
+        return []
+    with open(TEST_KAM, encoding='utf-8') as f:
+        content = f.read()
+
+    # Check if the fix is already applied
+    if r"""open\([^,)]*,\s*['"][^'"]*[wra]b[^'"]*['"]""" in content:
+        return []  # already patched
+
+    # Apply the binary-mode exclusion
+    old = "missing_enc = [l for l in open_lines if 'encoding' not in l]"
+    new = (
+        "missing_enc = [l for l in open_lines if 'encoding' not in l\n"
+        "                      and not re.search("
+        r"""r\"\"\"open\\([^,)]*,\\s*['\"][^'\"]*[wra]b[^'\"]*['\"]\"\"\" """
+        ", l)]"
+    )
+    if old not in content:
+        return []
+
+    patched = content.replace(old, new, 1)
+    with open(TEST_KAM, 'w', encoding='utf-8') as f:
+        f.write(patched)
+    return ['test_kam.py']
+
+
+# ── GitHub API helpers ─────────────────────────────────────────────────────────
 
 def _log_ci(run_id, action, result):
-    """Log a CI watcher event to logs/ci_watcher.jsonl."""
     os.makedirs(os.path.dirname(CI_LOG), exist_ok=True)
     entry = {
         'ts':     time.time(),
@@ -325,10 +442,6 @@ def _log_ci(run_id, action, result):
 
 
 def _gh_get(path):
-    """
-    Authenticated GET request to GitHub API.
-    Returns parsed JSON dict/list, or None on error.
-    """
     url = f'https://api.github.com{path}'
     req = urllib.request.Request(url, headers={
         'Authorization':        f'Bearer {GITHUB_TOKEN}',
@@ -348,10 +461,7 @@ def _gh_get(path):
 
 
 def _gh_get_text(path):
-    """
-    Authenticated GET request that returns raw text (for job log downloads).
-    GitHub redirects log URLs to a signed S3 URL — urllib follows automatically.
-    """
+    """GET raw text (for job log downloads — GitHub redirects to signed S3 URL)."""
     url = f'https://api.github.com{path}'
     req = urllib.request.Request(url, headers={
         'Authorization':        f'Bearer {GITHUB_TOKEN}',
@@ -368,15 +478,9 @@ def _gh_get_text(path):
 
 
 def _fetch_failed_ci_runs(seen_run_ids):
-    """
-    Poll GitHub Actions API for recently failed workflow runs.
-    Returns list of run dicts for runs not already in seen_run_ids.
-    Updates seen_run_ids in-place.
-    """
     data = _gh_get(f'/repos/{GITHUB_REPO}/actions/runs?status=failure&per_page=10')
     if not data:
         return []
-
     new_failures = []
     for run in data.get('workflow_runs', []):
         run_id = run.get('id')
@@ -394,14 +498,9 @@ def _fetch_failed_ci_runs(seen_run_ids):
 
 
 def _fetch_job_logs(run_id):
-    """
-    Fetch logs for all *failed* jobs in a workflow run.
-    Returns concatenated log text, or '' if unavailable.
-    """
     jobs_data = _gh_get(f'/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs')
     if not jobs_data:
         return ''
-
     all_logs = []
     for job in jobs_data.get('jobs', []):
         if job.get('conclusion') == 'failure':
@@ -414,10 +513,6 @@ def _fetch_job_logs(run_id):
 
 
 def _diagnose_ci_failure(logs_text):
-    """
-    Match CI log text against CI_KNOWN_ISSUES patterns.
-    Returns (key, issue_dict) for the first match, or (None, None).
-    """
     lower = logs_text.lower()
     for key, issue in CI_KNOWN_ISSUES.items():
         if any(p.lower() in lower for p in issue['patterns']):
@@ -425,15 +520,71 @@ def _diagnose_ci_failure(logs_text):
     return None, None
 
 
-def ci_poll_cycle(seen_run_ids):
-    """
-    Poll GitHub Actions for failed runs, diagnose, and log.
-    Returns list of run IDs processed.
+# ── Git push helper ────────────────────────────────────────────────────────────
 
-    Auto-fix policy (conservative):
-    - 'already_applied': fix is in codebase; log as regression warning, escalate.
-    - 'log_and_escalate': no safe automated code change; log details for human review.
-    All diagnosed failures are written to logs/ci_watcher.jsonl.
+def _git_push_fix(files_changed, commit_message):
+    """
+    Stage files_changed, commit with commit_message, and push to origin.
+    Returns the new HEAD SHA on success, or None on failure.
+    """
+    try:
+        subprocess.run(
+            ['git', '-C', ROOT, 'add', '--'] + files_changed,
+            check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ['git', '-C', ROOT, 'commit', '-m', commit_message],
+            check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ['git', '-C', ROOT, 'push'],
+            check=True, capture_output=True, text=True,
+        )
+        result = subprocess.run(
+            ['git', '-C', ROOT, 'rev-parse', 'HEAD'],
+            check=True, capture_output=True, text=True,
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        _log_ci('SYSTEM', 'git_push_failed',
+                f'stderr: {e.stderr.strip() if e.stderr else ""} | stdout: {e.stdout.strip() if e.stdout else ""}')
+        return None
+
+
+# ── Wait for CI run on a specific SHA ─────────────────────────────────────────
+
+def _wait_for_ci_run(head_sha, timeout=CI_WAIT_TIMEOUT, poll=CI_WAIT_POLL):
+    """
+    Poll Actions API until a completed run is found for head_sha.
+    Returns the run conclusion ('success', 'failure', etc.) or 'timeout'.
+    """
+    deadline = time.time() + timeout
+    print(f'[BugWatcher/CI] Waiting up to {timeout}s for CI run on {head_sha[:8]}…',
+          flush=True)
+    while time.time() < deadline:
+        time.sleep(poll)
+        data = _gh_get(
+            f'/repos/{GITHUB_REPO}/actions/runs?head_sha={head_sha}&per_page=5'
+        )
+        if not data:
+            continue
+        for run in data.get('workflow_runs', []):
+            if run.get('status') == 'completed':
+                conclusion = run.get('conclusion', 'unknown')
+                print(f'[BugWatcher/CI] CI run completed: {conclusion}', flush=True)
+                return conclusion
+    print(f'[BugWatcher/CI] Timed out waiting for CI run on {head_sha[:8]}', flush=True)
+    return 'timeout'
+
+
+# ── CI poll cycle ──────────────────────────────────────────────────────────────
+
+def ci_poll_cycle(seen_run_ids, wait_for_green=False):
+    """
+    Poll GitHub Actions for failed runs, diagnose, attempt safe auto-fixes,
+    push fixes, and optionally wait for the new run to confirm green.
+
+    Returns list of run IDs processed.
     """
     if not GITHUB_TOKEN:
         print('[BugWatcher/CI] GITHUB_TOKEN not set — skipping CI poll', flush=True)
@@ -450,55 +601,109 @@ def ci_poll_cycle(seen_run_ids):
         run_url  = run['run_url']
         branch   = run['branch']
 
-        print(f'[BugWatcher/CI] New failure detected: "{run_name}" on {branch} (run #{run_id})',
+        print(f'[BugWatcher/CI] Failure: "{run_name}" on {branch} (#{run_id})',
               flush=True)
 
         logs_text = _fetch_job_logs(run_id)
         if not logs_text:
             _log_ci(run_id, 'no_logs',
-                    f'Could not fetch job logs for run #{run_id}. Review: {run_url}')
-            print(f'[BugWatcher/CI] Could not fetch logs — logged for review: {run_url}',
-                  flush=True)
+                    f'Could not fetch job logs. Review: {run_url}')
             processed.append(run_id)
             continue
 
         key, issue = _diagnose_ci_failure(logs_text)
 
-        if issue:
-            fix_action = issue.get('fix', 'log_and_escalate')
-            print(f'[BugWatcher/CI] Diagnosed: {key} ({fix_action})', flush=True)
-
-            if fix_action == 'already_applied':
-                # Known fix already in codebase — this is a regression
-                _log_ci(run_id, 'regression_detected', json.dumps({
-                    'issue_key':   key,
-                    'description': issue['description'],
-                    'fix_summary': issue['fix_summary'],
-                    'run_url':     run_url,
-                    'severity':    'high',
-                }))
-                print(f'[BugWatcher/CI] ⚠ REGRESSION: {key} — fix was already applied. '
-                      f'Human review required. {run_url}', flush=True)
-
-            else:  # log_and_escalate
-                _log_ci(run_id, 'escalated', json.dumps({
-                    'issue_key':   key,
-                    'description': issue['description'],
-                    'fix_summary': issue['fix_summary'],
-                    'run_url':     run_url,
-                }))
-                print(f'[BugWatcher/CI] Escalated: {issue["fix_summary"]}', flush=True)
-
-        else:
-            # No pattern match — log raw summary for human review
-            # Truncate logs to 2000 chars to keep log file sane
+        if not issue:
             snippet = logs_text[-2000:] if len(logs_text) > 2000 else logs_text
             _log_ci(run_id, 'undiagnosed', json.dumps({
-                'run_url':     run_url,
-                'log_snippet': snippet,
+                'run_url': run_url, 'log_snippet': snippet,
             }))
-            print(f'[BugWatcher/CI] Undiagnosed failure — log snippet saved. Review: {run_url}',
+            print(f'[BugWatcher/CI] Undiagnosed — log snippet saved. {run_url}',
                   flush=True)
+            processed.append(run_id)
+            continue
+
+        print(f'[BugWatcher/CI] Diagnosed: {key}', flush=True)
+        fix_action = issue.get('fix', 'log_and_escalate')
+
+        if fix_action != 'auto_fix':
+            _log_ci(run_id, 'escalated', json.dumps({
+                'issue_key':   key,
+                'description': issue['description'],
+                'fix_summary': issue['fix_summary'],
+                'run_url':     run_url,
+            }))
+            print(f'[BugWatcher/CI] Escalated: {issue["fix_summary"]}', flush=True)
+            processed.append(run_id)
+            continue
+
+        # ── Attempt auto-fix ──────────────────────────────────────────────────
+        files_changed = []
+        if key == 'nsis_not_in_path':
+            files_changed = _fix_nsis_path()
+        elif key == 'missing_python_dep':
+            files_changed = _fix_missing_module(logs_text)
+        elif key == 'test_suite_encoding_fp':
+            files_changed = _fix_encoding_false_positive()
+
+        if not files_changed:
+            # Fix function returned nothing — patch already applied or couldn't apply
+            _log_ci(run_id, 'fix_already_applied', json.dumps({
+                'issue_key': key,
+                'run_url':   run_url,
+                'note':      'Fix already in codebase or could not be applied — possible regression.',
+            }))
+            print(f'[BugWatcher/CI] Fix already applied for {key} — possible regression! {run_url}',
+                  flush=True)
+            processed.append(run_id)
+            continue
+
+        # Push the fix
+        commit_msg = (
+            f'bugwatcher: auto-fix CI failure ({key})\n\n'
+            f'Auto-applied by BugWatcher in response to failed run #{run_id}.\n'
+            f'Fix: {issue["fix_summary"]}\n\n'
+            f'Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>'
+        )
+        new_sha = _git_push_fix(files_changed, commit_msg)
+
+        if not new_sha:
+            _log_ci(run_id, 'fix_push_failed', json.dumps({
+                'issue_key':     key,
+                'files_changed': files_changed,
+                'run_url':       run_url,
+            }))
+            print(f'[BugWatcher/CI] Fix prepared but git push failed — check logs', flush=True)
+            processed.append(run_id)
+            continue
+
+        print(f'[BugWatcher/CI] Fix pushed: {new_sha[:8]} ({", ".join(files_changed)})',
+              flush=True)
+        _log_ci(run_id, 'fix_pushed', json.dumps({
+            'issue_key':     key,
+            'new_sha':       new_sha,
+            'files_changed': files_changed,
+            'run_url':       run_url,
+        }))
+
+        # Optionally wait for new CI run to confirm green
+        if wait_for_green:
+            conclusion = _wait_for_ci_run(new_sha)
+            if conclusion == 'success':
+                _log_ci(run_id, 'fix_confirmed_green', json.dumps({
+                    'issue_key': key, 'new_sha': new_sha,
+                }))
+                print(f'[BugWatcher/CI] Fix confirmed GREEN on {new_sha[:8]}', flush=True)
+            elif conclusion == 'timeout':
+                _log_ci(run_id, 'fix_wait_timeout', json.dumps({
+                    'issue_key': key, 'new_sha': new_sha,
+                }))
+            else:
+                _log_ci(run_id, 'fix_still_failing', json.dumps({
+                    'issue_key': key, 'new_sha': new_sha, 'conclusion': conclusion,
+                }))
+                print(f'[BugWatcher/CI] Fix pushed but CI still failing ({conclusion}) — escalating',
+                      flush=True)
 
         processed.append(run_id)
 
@@ -526,7 +731,7 @@ def daily_summary():
                     bid = b.get('id', '?')
                     if s == 'resolved' and b.get('resolved_at', '').startswith(today):
                         fixed.append(bid)
-                    elif s in ('open',):
+                    elif s == 'open':
                         still_open.append(bid)
                     elif s == 'escalated' and b.get('escalated_at', '').startswith(today) if 'escalated_at' in b else False:
                         escalated.append(bid)
@@ -548,8 +753,7 @@ def daily_summary():
                 except Exception:
                     pass
 
-    # Count today's CI events
-    ci_diagnosed, ci_regressions, ci_undiagnosed = 0, 0, 0
+    ci_fixed, ci_regressions, ci_undiagnosed, ci_escalated = 0, 0, 0, 0
     if os.path.exists(CI_LOG):
         with open(CI_LOG, encoding='utf-8') as f:
             for line in f:
@@ -560,16 +764,17 @@ def daily_summary():
                     e = json.loads(line)
                     if e.get('date', '').startswith(today):
                         a = e.get('action', '')
-                        if a in ('diagnosed', 'escalated'):
-                            ci_diagnosed += 1
+                        if a == 'fix_confirmed_green':
+                            ci_fixed += 1
                         elif a == 'regression_detected':
                             ci_regressions += 1
                         elif a == 'undiagnosed':
                             ci_undiagnosed += 1
+                        elif a == 'escalated':
+                            ci_escalated += 1
                 except Exception:
                     pass
 
-    # Latest test count from watcher log
     tests_passing = None
     if os.path.exists(WATCHER_LOG):
         with open(WATCHER_LOG, encoding='utf-8') as f:
@@ -584,15 +789,16 @@ def daily_summary():
                 pass
 
     summary = {
-        'date':           today,
-        'fixed':          fixed,
-        'escalated':      escalated,
-        'still_open':     still_open,
-        'tests_passing':  tests_passing,
+        'date':          today,
+        'fixed':         fixed,
+        'escalated':     escalated,
+        'still_open':    still_open,
+        'tests_passing': tests_passing,
         'ci': {
-            'diagnosed':   ci_diagnosed,
-            'regressions': ci_regressions,
-            'undiagnosed': ci_undiagnosed,
+            'auto_fixed':   ci_fixed,
+            'regressions':  ci_regressions,
+            'undiagnosed':  ci_undiagnosed,
+            'escalated':    ci_escalated,
         },
     }
     with open(out, 'w', encoding='utf-8') as f:
@@ -605,9 +811,11 @@ def daily_summary():
 def main():
     parser = argparse.ArgumentParser(description='KAM Sentinel BugWatcher daemon')
     parser.add_argument('--once', action='store_true',
-                        help='Run one local bug poll cycle then exit (for CI/testing)')
+                        help='Run one local bug poll cycle then exit')
     parser.add_argument('--ci', action='store_true',
                         help='Run one CI poll cycle then exit')
+    parser.add_argument('--wait', action='store_true',
+                        help='After pushing a CI fix, wait for the new run to confirm green')
     args = parser.parse_args()
 
     os.makedirs(BUGS_DIR, exist_ok=True)
@@ -616,24 +824,23 @@ def main():
     ci_enabled = bool(GITHUB_TOKEN)
 
     if args.ci:
-        # Single CI poll and exit
         _log_ci('SYSTEM', 'started', 'CI poll (--ci mode)')
         seen_run_ids = set()
-        processed = ci_poll_cycle(seen_run_ids)
+        processed = ci_poll_cycle(seen_run_ids, wait_for_green=args.wait)
         print(f'[BugWatcher/CI] Done — {len(processed)} run(s) processed.', flush=True)
         return
 
     _log('SYSTEM', 'started', 'BugWatcher daemon started')
     print(
-        f'[BugWatcher] Started — local poll: {POLL_INTERVAL}s | '
-        f'CI poll: {CI_POLL_INTERVAL}s | CI enabled: {ci_enabled} | --once: {args.once}',
-        flush=True
+        f'[BugWatcher] Started — local: {POLL_INTERVAL}s | CI: {CI_POLL_INTERVAL}s | '
+        f'CI enabled: {ci_enabled} | --once: {args.once}',
+        flush=True,
     )
 
     seen_ids     = set()
     seen_run_ids = set()
     last_daily   = None
-    last_ci_poll = 0.0  # epoch — forces an immediate first CI poll
+    last_ci_poll = 0.0  # force immediate first CI poll
 
     while True:
         # ── Local bug poll ────────────────────────────────────────────────────
@@ -643,18 +850,17 @@ def main():
                 print(f'[BugWatcher] Auto-resolved: {fixed}', flush=True)
                 _log('SYSTEM', 'cycle_complete', f'Resolved: {fixed}')
             if escalated:
-                print(f'[BugWatcher] Escalated (needs review): {escalated}', flush=True)
+                print(f'[BugWatcher] Escalated: {escalated}', flush=True)
                 _log('SYSTEM', 'cycle_complete', f'Escalated: {escalated}')
         except Exception as exc:
             _log('SYSTEM', 'poll_error', str(exc))
 
-        # ── CI poll (every CI_POLL_INTERVAL seconds) ──────────────────────────
+        # ── CI poll ───────────────────────────────────────────────────────────
         if ci_enabled and (time.time() - last_ci_poll) >= CI_POLL_INTERVAL:
             try:
-                processed = ci_poll_cycle(seen_run_ids)
+                processed = ci_poll_cycle(seen_run_ids, wait_for_green=args.wait)
                 if processed:
-                    _log('SYSTEM', 'ci_cycle_complete',
-                         f'CI runs processed: {processed}')
+                    _log('SYSTEM', 'ci_cycle_complete', f'CI runs processed: {processed}')
             except Exception as exc:
                 _log_ci('SYSTEM', 'ci_poll_error', str(exc))
             last_ci_poll = time.time()
@@ -668,8 +874,8 @@ def main():
                 last_daily = today
                 _log('SYSTEM', 'daily_summary',
                      f'fixed={len(s["fixed"])} escalated={len(s["escalated"])} '
-                     f'open={len(s["still_open"])} ci_regressions={s["ci"]["regressions"]}')
-                print(f'[BugWatcher] Daily summary written → logs/bugwatcher_daily/{today}.json',
+                     f'ci_fixed={s["ci"]["auto_fixed"]} ci_regressions={s["ci"]["regressions"]}')
+                print(f'[BugWatcher] Daily summary → logs/bugwatcher_daily/{today}.json',
                       flush=True)
             except Exception as exc:
                 _log('SYSTEM', 'daily_summary_error', str(exc))

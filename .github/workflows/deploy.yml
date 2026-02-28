@@ -8,8 +8,37 @@ on:
     branches: [ main ]
 
 jobs:
+  # ─── Test gate (must pass before anything else runs) ──────────────────────────
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flask psutil GPUtil pyinstaller
+
+    - name: Run test suite
+      env:
+        CI: "true"
+      run: python test_kam.py
+
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-report
+        path: test_report.html
+
   # ─── Windows build ────────────────────────────────────────────────────────────
   build-windows:
+    needs: [test]
     runs-on: windows-latest
 
     steps:
@@ -23,18 +52,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flask psutil GPUtil wmi pywin32 pyinstaller
-
-    - name: Run test suite
-      env:
-        CI: "true"
-      run: python test_kam.py
-
-    - name: Upload test report
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-report-windows
-        path: test_report.html
 
     - name: Build Windows EXE
       run: |
@@ -71,6 +88,7 @@ jobs:
 
   # ─── macOS build ──────────────────────────────────────────────────────────────
   build-macos:
+    needs: [test]
     runs-on: macos-latest
 
     steps:
@@ -84,18 +102,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flask psutil GPUtil pyinstaller
-
-    - name: Run test suite
-      env:
-        CI: "true"
-      run: python test_kam.py
-
-    - name: Upload test report
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-report-macos
-        path: test_report.html
 
     - name: Build macOS binary
       run: |
@@ -116,7 +122,7 @@ jobs:
 
   # ─── GitHub Release (on version tags only) ────────────────────────────────────
   release:
-    needs: [ build-windows, build-macos ]
+    needs: [test, build-windows, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 

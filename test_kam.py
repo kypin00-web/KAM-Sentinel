@@ -642,12 +642,13 @@ try:
     else:
         fail(f"POST /api/thresholds from localhost returned {resp.status_code}")
 
-    # /api/shutdown endpoint exists and returns 200
-    resp = client.post('/api/shutdown', environ_base={'REMOTE_ADDR': '127.0.0.1'})
-    if resp.status_code == 200:
-        ok("/api/shutdown exists and returns 200")
+    # /api/shutdown route is registered (do NOT actually POST — it calls os._exit
+    # in test mode which kills the process and prevents remaining sections from running)
+    _sd_rules = [str(r) for r in srv.app.url_map.iter_rules() if r.rule == '/api/shutdown']
+    if _sd_rules:
+        ok("/api/shutdown endpoint registered -- route decorator confirmed")
     else:
-        fail(f"/api/shutdown returned {resp.status_code} (expected 200 -- check @app.route decorator)")
+        fail("/api/shutdown not registered -- logs won't flush when browser tab closes")
 
     # /api/fps endpoint returns 200 with required keys
     resp = client.get('/api/fps')
@@ -970,6 +971,76 @@ try:
 except Exception as e:
     import traceback
     fail(f"Path resolution check error: {e} -- {traceback.format_exc().splitlines()[-1]}")
+
+
+# ===============================================================================
+# 14. NSIS INSTALLER & CI PIPELINE CHECKS
+# ===============================================================================
+section("14. NSIS Installer & CI Pipeline")
+
+import re as _re14
+
+_ROOT14 = os.path.dirname(os.path.abspath(__file__))
+
+# ── scripts/installer.nsi ─────────────────────────────────────────────────────
+_nsi_path = os.path.join(_ROOT14, 'scripts', 'installer.nsi')
+if os.path.exists(_nsi_path):
+    ok("scripts/installer.nsi exists")
+    try:
+        with open(_nsi_path, encoding='utf-8') as _f:
+            _nsi_src = _f.read()
+        for _kw in ('Name ', 'OutFile', 'Section', 'SectionEnd'):
+            if _kw in _nsi_src:
+                ok(f"installer.nsi contains '{_kw}'")
+            else:
+                fail(f"installer.nsi missing '{_kw}' -- NSIS build will fail")
+    except Exception as _e:
+        fail(f"installer.nsi read error: {_e}")
+else:
+    fail("scripts/installer.nsi not found -- NSIS installer build will fail")
+
+# ── .github/workflows/deploy.yml ──────────────────────────────────────────────
+_deploy_path = os.path.join(_ROOT14, '.github', 'workflows', 'deploy.yml')
+if os.path.exists(_deploy_path):
+    ok(".github/workflows/deploy.yml exists")
+    try:
+        with open(_deploy_path, encoding='utf-8') as _f:
+            _deploy_src = _f.read()
+
+        # NSIS step must use choco install + hardcoded full path
+        if 'choco install nsis -y' in _deploy_src:
+            ok("deploy.yml: NSIS step uses 'choco install nsis -y'")
+        else:
+            fail("deploy.yml: 'choco install nsis -y' missing -- NSIS build will fail on CI")
+
+        _nsis_full_path = r'"C:\Program Files (x86)\NSIS\makensis.exe"'
+        if _nsis_full_path in _deploy_src:
+            ok("deploy.yml: makensis called via hardcoded full path (bypasses PATH refresh issue)")
+        else:
+            fail("deploy.yml: hardcoded NSIS full path missing -- PATH refresh bug will break installer step")
+
+        # Dedicated test gate job must exist
+        if _re14.search(r'^\s{2}test:\s*$', _deploy_src, _re14.MULTILINE):
+            ok("deploy.yml: dedicated 'test:' gate job present")
+        else:
+            fail("deploy.yml: no 'test:' job -- CI runs without a test gate; broken code can deploy")
+
+        # Build jobs must depend on the test gate
+        if 'needs: [test]' in _deploy_src:
+            ok("deploy.yml: build jobs gated on 'needs: [test]'")
+        else:
+            fail("deploy.yml: build jobs missing 'needs: [test]' -- builds run even when tests fail")
+
+        # Release must depend on all upstream jobs
+        if 'needs: [test, build-windows, build-macos]' in _deploy_src:
+            ok("deploy.yml: release job needs: [test, build-windows, build-macos] -- full gate in place")
+        else:
+            fail("deploy.yml: release job missing full dependency chain -- broken builds can reach production")
+
+    except Exception as _e:
+        fail(f"deploy.yml read error: {_e}")
+else:
+    fail(".github/workflows/deploy.yml not found")
 
 
 # -- Write HTML report ---------------------------------------------------------

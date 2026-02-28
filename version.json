@@ -1,9 +1,9 @@
 {
-  "version": "1.5.8",
-  "build": 18,
+  "version": "1.5.9",
+  "build": 19,
   "date": "2026-02-27",
   "channel": "stable",
-  "changelog": "v1.5.8: Fix NSIS step — choco install nsis unconditionally, call full path C:\\Program Files (x86)\\NSIS\\makensis.exe.",
+  "changelog": "v1.5.9: CI hardening — test gate, NSIS+CI pipeline tests, BugWatcher auto-fix, shutdown test fix.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,6 +12,12 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: deploy.yml NSIS step now runs 'choco install nsis -y' unconditionally, then calls full path 'C:\\Program Files (x86)\\NSIS\\makensis.exe' directly — avoids PATH refresh issue mid-script"
+    "NEW: deploy.yml test gate job (ubuntu-latest) — runs tests first; build-windows and build-macos only start if tests pass",
+    "NEW: release job needs: [test, build-windows, build-macos] — nothing deploys if any upstream job fails",
+    "NEW: Section 14 in test_kam.py — 11 tests for scripts/installer.nsi existence/structure and deploy.yml NSIS fix + job dependency chain",
+    "FIX: test_kam.py /api/shutdown test no longer actually POSTs to the endpoint (was calling os._exit, killing process before sections 12-14 ran)",
+    "NEW: BugWatcher auto-fix pipeline — _fix_nsis_path, _fix_missing_module, _fix_encoding_false_positive applied and git-pushed automatically",
+    "NEW: BugWatcher _git_push_fix + _wait_for_ci_run — pushes fix commit, waits up to 10 min for new CI run, logs green/still-failing outcome",
+    "NEW: --wait flag for bugwatcher daemon — enables wait-for-green confirmation after auto-fix push"
   ]
 }

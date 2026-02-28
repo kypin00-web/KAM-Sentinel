@@ -2,6 +2,31 @@
 
 ---
 
+## v1.5.9 — 2026-02-27
+
+### CI Hardening — Zero Broken Builds to Production
+
+#### deploy.yml — Strict Job Ordering
+- **Test gate job** (`ubuntu-latest`) runs `python test_kam.py` first. If it fails, the entire pipeline stops — no Windows build, no macOS build, no release.
+- **`build-windows`** and **`build-macos`** now both declare `needs: [test]`.
+- **`release`** now declares `needs: [test, build-windows, build-macos]` — all three must succeed before any release assets are published.
+- **Test run removed from build jobs** — tests run once (in the gate job), not three times.
+
+#### test_kam.py — Section 14: NSIS Installer & CI Pipeline
+- 11 new checks: `scripts/installer.nsi` exists and contains `Name`, `OutFile`, `Section`, `SectionEnd`; `deploy.yml` contains `choco install nsis -y` and the hardcoded full makensis path; `test:` gate job exists; `needs: [test]` on build jobs; `needs: [test, build-windows, build-macos]` on release.
+- **Shutdown test fix** — section 10's `/api/shutdown` test was actually POSTing to the endpoint, which started an `os._exit(0)` thread 0.5s later and killed the test process before sections 12-14 ever ran. Changed to route-registration check (`url_map.iter_rules`).
+
+#### BugWatcher — Auto-Fix Pipeline
+- `_fix_nsis_path()` — patches `deploy.yml` to use `choco install nsis -y` + hardcoded full path if the fix has regressed.
+- `_fix_missing_module(logs_text)` — parses `ModuleNotFoundError`, maps to pip package via `_MODULE_TO_PKG` whitelist, adds to ubuntu install line.
+- `_fix_encoding_false_positive()` — adds the binary-mode regex exclusion to `test_kam.py` if it has been removed.
+- `_git_push_fix(files, commit_message)` — stages files, commits, pushes, returns new HEAD SHA.
+- `_wait_for_ci_run(sha)` — polls Actions API every 30s for up to 10 min; returns `success`, `failure`, or `timeout`.
+- `--wait` flag — enables wait-for-green confirmation after pushing an auto-fix.
+- ANSI code stripping in `_run_tests()` — `Passed:` line is now correctly parsed regardless of terminal color output.
+
+---
+
 ## v1.5.8 — 2026-02-27
 
 ### CI Fix — NSIS makensis not found after Chocolatey install
