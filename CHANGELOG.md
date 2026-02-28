@@ -2,6 +2,32 @@
 
 ---
 
+## v1.5.16 — 2026-02-28
+
+### Crash Recovery — Eve Diagnoses Startup Failures
+
+If KAM Sentinel crashes on startup, Eve now logs the crash details and shows a friendly diagnosis popup the next time you open the app. No raw stack traces, no confusion.
+
+#### `launch.py`
+- **`_write_crash(exc)`** — on any unhandled exception during startup, writes a JSON entry to `logs/crashes.jsonl` and drops `logs/crash.flag`. Both paths use the same `%APPDATA%\KAM Sentinel` logic as `server.py`.
+- **`_CRASH_LOG` + `_CRASH_FLAG`** — path constants, set independently from server.py so they resolve correctly even if `server.py` fails to import.
+- **`app.run()` wrapped in `try/except`** — startup exceptions are caught, `_write_crash()` is called, a human-readable message is printed, then `sys.exit(1)`.
+
+#### `server.py`
+- **`CRASH_LOG` + `CRASH_FLAG`** constants point to `logs/crashes.jsonl` and `logs/crash.flag` in `DATA_DIR`.
+- **`_diagnose_crash(entry)`** — maps raw exception types to plain English: `PermissionError` → permissions hint, `ModuleNotFoundError` → reinstall hint, port conflicts → close-other-instance hint, etc.
+- **`GET /api/eve/crash`** — reads `crash.flag` if present, returns `{crashed: True, friendly_msg, error, version}`, then deletes the flag. Returns `{crashed: False}` if no flag.
+- **`POST /api/eve/jserror`** — receives `{message, source, lineno, colno, error, page}` from `window.onerror` in the browser; appends to `logs/jserrors.jsonl`.
+
+#### `dashboard.html`
+- **`eveCrashShow(msg)`** — creates a fixed-position popup (bottom-right, Eve pink border) with a friendly message and a "Got it" button. Never shows raw error text.
+- **Crash recovery IIFE** — fetches `/api/eve/crash` on page load; if `crashed: true`, calls `eveCrashShow()` after DOM is ready.
+- **`window.onerror`** — reports browser JS errors to `/api/eve/jserror`; returns `false` so browser default handling continues.
+- **What's New null guards** — `wnBuild()` and `wnUpdate()` now null-check `wnDots`, `wnNext`, and `wnProgress` before use; both wrapped in `try/catch`. `wnDismiss()` null-checks the overlay element.
+- **`WN_VER` updated to `'1.5.16'`** — users see the latest What's New walkthrough; content updated to highlight crash recovery, Eve voice toggle, Wes Mode, installer fix, FPS counter, and Forge benchmarks.
+
+---
+
 ## v1.5.15 — 2026-02-28
 
 ### Eve Voice Toggle — Mute/Unmute Button

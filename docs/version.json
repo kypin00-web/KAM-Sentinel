@@ -1,9 +1,9 @@
 {
-  "version": "1.5.15",
-  "build": 25,
+  "version": "1.5.16",
+  "build": 26,
   "date": "2026-02-28",
   "channel": "stable",
-  "changelog": "v1.5.15: Eve Voice Toggle — mute/unmute button in header with Wes Mode accessibility override.",
+  "changelog": "v1.5.16: Crash Recovery — Eve logs startup crashes, diagnoses on next launch, JS error reporting, What's New null guards.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,11 +12,11 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: Eve Voice Toggle — 🔊/🔇 button in dashboard header mutes/unmutes Eve's pyttsx3 voice",
-    "NEW: Mute confirmation — Eve says goodbye before going silent, says hello on unmute",
-    "NEW: GET /api/eve/voice + POST /api/eve/voice — persist toggle to profiles/accessibility.json",
-    "NEW: _eve_voice_enabled() helper — centralised mute check in server.py and bugwatcher.py",
-    "NEW: Wes Mode accessibility override — voice toggle is ignored (always on) for Wes",
-    "NEW: force=True parameter on _eve_speak_async / eve_speak — lets mute message play through"
+    "NEW: Crash logging — launch.py wraps startup in try/except, writes crashes.jsonl + crash.flag on failure",
+    "NEW: Eve crash recovery — /api/eve/crash returns friendly diagnosis; popup shown on next launch",
+    "NEW: _diagnose_crash() — maps PermissionError / ModuleNotFoundError / port conflicts to plain English",
+    "NEW: /api/eve/jserror POST — dashboard window.onerror forwards JS errors to logs/jserrors.jsonl",
+    "FIX: What's New null guards — wnBuild/wnUpdate wrapped in try/catch + null checks on all DOM refs",
+    "FIX: WN_VER updated to 1.5.16 — users see latest What's New content on next open"
   ]
 }

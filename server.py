@@ -125,9 +125,11 @@ PROF_DIR           = os.path.join(DATA_DIR, 'profiles')
 BASELINE           = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 ACCESSIBILITY_FILE = os.path.join(PROF_DIR, 'accessibility.json')
+CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
+CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.15'
+VER               = '1.5.16'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1134,6 +1136,24 @@ def api_forge_benchmark_baseline():
     return jsonify(first) if first else (jsonify(error='No valid runs'), 404)
 
 
+def _diagnose_crash(entry):
+    """Translate a raw crash entry into a user-friendly explanation for Eve to deliver."""
+    err = str(entry.get('error', ''))
+    if 'PermissionError' in err:
+        return "Looks like a permissions hiccup last time. Try running as Administrator, or move the app out of Program Files."
+    if 'ModuleNotFoundError' in err or 'ImportError' in err:
+        return "A required component wasn't found. Try reinstalling KAM Sentinel — the setup file will fix it."
+    if 'MemoryError' in err:
+        return "We ran out of memory last time. Try closing some other apps before restarting."
+    if '10048' in err or 'address already in use' in err.lower():
+        return "Port 5000 was already in use. Close any other KAM Sentinel windows and try again."
+    if 'ConnectionRefused' in err or 'ConnectionError' in err:
+        return "Couldn't connect to localhost. A firewall or security tool may be blocking the server."
+    if 'JSONDecodeError' in err:
+        return "A settings file got corrupted last time. Eve already cleaned it up \u2014 should be smooth now."
+    return "Something unexpected happened last time. I already logged it \u2014 try restarting and it should be fine."
+
+
 def _eve_sapi_pitch(hz):
     """Map 2000–8000 Hz preference to SAPI5 pitch (−10 to +10)."""
     return max(-10, min(10, round((hz - 5000) / 300)))
@@ -1312,6 +1332,51 @@ def api_eve_fix():
         message="On it! I'll have this fixed faster than you can say 'ayudame' \U0001f495 \u2014 Eve",
         logged=True,
     )
+
+
+@app.route('/api/eve/crash')
+def api_eve_crash():
+    """Check for a crash.flag left by the previous session. Consumes and deletes it."""
+    if not os.path.exists(CRASH_FLAG):
+        return jsonify(crashed=False)
+    try:
+        with open(CRASH_FLAG, encoding='utf-8') as f:
+            entry = json.load(f)
+    except Exception:
+        entry = {}
+    try:
+        os.remove(CRASH_FLAG)
+    except Exception:
+        pass
+    return jsonify(
+        crashed=True,
+        friendly_msg=_diagnose_crash(entry),
+        error=entry.get('error', 'unknown'),
+        version=entry.get('version', ''),
+    )
+
+
+@app.route('/api/eve/jserror', methods=['POST'])
+def api_eve_jserror():
+    """Log a JavaScript error reported by window.onerror in the dashboard."""
+    d = request.get_json(silent=True) or {}
+    entry = {
+        'ts':      time.time(),
+        'date':    datetime.datetime.now().isoformat(),
+        'message': str(d.get('message', ''))[:500],
+        'source':  str(d.get('source', ''))[:300],
+        'lineno':  int(d.get('lineno') or 0),
+        'colno':   int(d.get('colno') or 0),
+        'error':   str(d.get('error', ''))[:500],
+        'page':    str(d.get('page', ''))[:200],
+    }
+    try:
+        js_log = os.path.join(LOG_DIR, 'jserrors.jsonl')
+        with open(js_log, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry) + '\n')
+    except Exception as e:
+        _log_err('api_eve_jserror', e)
+    return jsonify(ok=True)
 
 
 if __name__ == '__main__':

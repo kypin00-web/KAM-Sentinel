@@ -1972,31 +1972,37 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.1';
+  const WN_VER     = '1.5.16';
   let wnStep = 0;
   let wnSteps, wnDots, wnNext, wnProgress;
 
   function wnBuild() {
-    wnSteps    = Array.from(document.querySelectorAll('#wn-steps li'));
-    wnDots     = document.getElementById('wn-dots');
-    wnNext     = document.getElementById('wn-next');
-    wnProgress = document.getElementById('wn-progress');
-    // Build dots
-    wnSteps.forEach((_, i) => {
-      const d = document.createElement('span');
-      d.className = 'wn-dot' + (i === 0 ? ' active' : '');
-      d.onclick = () => wnGoTo(i);
-      wnDots.appendChild(d);
-    });
-    wnUpdate();
+    try {
+      wnSteps    = Array.from(document.querySelectorAll('#wn-steps li'));
+      wnDots     = document.getElementById('wn-dots');
+      wnNext     = document.getElementById('wn-next');
+      wnProgress = document.getElementById('wn-progress');
+      if (!wnDots || !wnNext || !wnProgress || !wnSteps.length) return;
+      // Build dots
+      wnSteps.forEach((_, i) => {
+        const d = document.createElement('span');
+        d.className = 'wn-dot' + (i === 0 ? ' active' : '');
+        d.onclick = () => wnGoTo(i);
+        wnDots.appendChild(d);
+      });
+      wnUpdate();
+    } catch(e) { /* silently ignore — never crash the dashboard */ }
   }
 
   function wnUpdate() {
-    const total = wnSteps.length;
-    wnSteps.forEach((el, i) => el.classList.toggle('active', i === wnStep));
-    Array.from(wnDots.children).forEach((d, i) => d.classList.toggle('active', i === wnStep));
-    wnProgress.textContent = (wnStep + 1) + ' / ' + total;
-    wnNext.textContent = wnStep < total - 1 ? 'NEXT' : 'GOT IT';
+    try {
+      if (!wnSteps || !wnDots || !wnNext || !wnProgress) return;
+      const total = wnSteps.length;
+      wnSteps.forEach((el, i) => el.classList.toggle('active', i === wnStep));
+      Array.from(wnDots.children).forEach((d, i) => d.classList.toggle('active', i === wnStep));
+      wnProgress.textContent = (wnStep + 1) + ' / ' + total;
+      wnNext.textContent = wnStep < total - 1 ? 'NEXT' : 'GOT IT';
+    } catch(e) { /* silently ignore */ }
   }
 
   function wnGoTo(i) { wnStep = i; wnUpdate(); }
@@ -2007,17 +2013,23 @@ function toggleBenchHistory() {
   };
 
   window.wnDismiss = function() {
-    document.getElementById('wn-overlay').classList.remove('open');
+    const overlay = document.getElementById('wn-overlay');
+    if (overlay) overlay.classList.remove('open');
     localStorage.setItem(WN_VER_KEY, WN_VER);
   };
 
   // Show if this version hasn't been seen yet
   document.addEventListener('DOMContentLoaded', () => {
-    if(localStorage.getItem(WN_VER_KEY) !== WN_VER) {
-      wnBuild();
-      // Delay slightly so the dashboard renders first
-      setTimeout(() => document.getElementById('wn-overlay').classList.add('open'), 1200);
-    }
+    try {
+      if(localStorage.getItem(WN_VER_KEY) !== WN_VER) {
+        wnBuild();
+        // Delay slightly so the dashboard renders first
+        setTimeout(() => {
+          const overlay = document.getElementById('wn-overlay');
+          if (overlay) overlay.classList.add('open');
+        }, 1200);
+      }
+    } catch(e) { /* never crash the dashboard over What's New */ }
   });
 })();
 
@@ -2306,6 +2318,72 @@ function eveDismiss() {
   if (pop) pop.classList.remove('visible');
 }
 
+// ── Eve Crash Recovery ────────────────────────────────────────────────────
+function eveCrashShow(msg) {
+  var popup = document.getElementById('eve-crash-popup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.id = 'eve-crash-popup';
+    popup.style.cssText = [
+      'position:fixed', 'bottom:24px', 'right:24px',
+      'background:#1a1a2e', 'border:1.5px solid #ff6b9d',
+      'border-radius:12px', 'padding:18px 22px', 'max-width:340px',
+      'z-index:9999', 'color:#e0e0e0',
+      'font-family:"Share Tech Mono",monospace',
+      'box-shadow:0 4px 24px rgba(255,107,157,.2)',
+      'line-height:1.5'
+    ].join(';');
+    document.body.appendChild(popup);
+  }
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'color:#ff6b9d;font-weight:bold;margin-bottom:8px;';
+  hdr.textContent = '\uD83D\uDEA8 Eve noticed something';
+  var body = document.createElement('div');
+  body.style.fontSize = '.85em';
+  body.textContent = msg;
+  var btn = document.createElement('button');
+  btn.style.cssText = 'margin-top:12px;background:#ff6b9d;border:none;border-radius:6px;color:#000;padding:6px 14px;cursor:pointer;font-family:inherit;';
+  btn.textContent = 'Got it';
+  btn.onclick = function() { popup.remove(); };
+  popup.innerHTML = '';
+  popup.appendChild(hdr);
+  popup.appendChild(body);
+  popup.appendChild(btn);
+}
+
+// Check for crash.flag on startup — Eve diagnoses and shows friendly popup
+(function _eveCrashCheck() {
+  fetch('/api/eve/crash').then(function(r) { return r.json(); }).then(function(d) {
+    if (d.crashed && d.friendly_msg) {
+      // Wait for DOM before showing popup
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { eveCrashShow(d.friendly_msg); });
+      } else {
+        eveCrashShow(d.friendly_msg);
+      }
+    }
+  }).catch(function() {});
+})();
+
+// ── JS Error Reporter — forwards window.onerror to Eve's log ─────────────
+window.onerror = function(msg, src, line, col, err) {
+  try {
+    fetch('/api/eve/jserror', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: String(msg || '').slice(0, 500),
+        source:  String(src  || '').slice(0, 300),
+        lineno:  line  || 0,
+        colno:   col   || 0,
+        error:   err   ? String(err).slice(0, 500) : '',
+        page:    location.pathname
+      })
+    });
+  } catch(_) {}
+  return false; // let browser default error handling continue
+};
+
 async function eveFix() {
   const btn    = document.getElementById('eve-fix-btn');
   const status = document.getElementById('eve-status');
@@ -2329,38 +2407,38 @@ async function eveFix() {
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
   <div id="wn-box">
     <div id="wn-badge">WHAT'S NEW</div>
-    <div id="wn-title">KAM Sentinel v1.5.2</div>
-    <div id="wn-sub">Module 3: Forge tab — Fan Control is live.</div>
+    <div id="wn-title">KAM Sentinel v1.5.16</div>
+    <div id="wn-sub">Crash Recovery &mdash; Eve&rsquo;s got your back.</div>
     <ul id="wn-steps">
       <li class="active">
-        <span class="wn-icon">&#x1F527;</span>
-        <span class="wn-step-title">404 Fixed &mdash; For Good</span><br>
-        Beta users hit a blank screen on launch. A PyInstaller path bug sent the server looking for dashboard.html in a temp folder that got deleted on exit. That's fixed. The dashboard now loads from the correct bundle directory every time.
-      </li>
-      <li>
-        <span class="wn-icon">&#x1F310;</span>
-        <span class="wn-step-title">Cross-Platform: Windows, Mac, Linux</span><br>
-        KAM Sentinel now runs on all three platforms. Windows uses WMI for temps and voltage. macOS reads from system_profiler and ioreg. Linux uses psutil sensors. All platforms share the same dashboard.
-      </li>
-      <li>
-        <span class="wn-icon">&#x26A1;</span>
-        <span class="wn-step-title">Leaner &mdash; Lower Overhead</span><br>
-        The server was rewritten from scratch. Every hardware read now happens in a background thread. When you refresh stats, the server reads from memory &mdash; zero I/O on the Flask thread. Monitoring your machine no longer competes with it.
-      </li>
-      <li>
-        <span class="wn-icon">&#x1F4CA;</span>
-        <span class="wn-step-title">Anonymous Install Telemetry</span><br>
-        We now know how many installs are active and what hardware classes are represented &mdash; without storing any personal info. No hostname, IP, or username is ever collected. Just a random UUID and a hardware bucket (e.g. "AMD Ryzen 7", "NVIDIA RTX 30xx").
-      </li>
-      <li>
         <span class="wn-icon">&#x1F6A8;</span>
-        <span class="wn-step-title">Proactive Error Tracking</span><br>
-        Errors are logged to <code>logs/errors.jsonl</code> and visible at <code>/api/errors</code>. The goal: know about issues before users hit the feedback loop, not after.
+        <span class="wn-step-title">Crash Recovery</span><br>
+        If KAM Sentinel crashes on startup, Eve logs the details and shows a friendly diagnosis the next time you launch &mdash; no raw error messages, no confusion. She&rsquo;s already on it.
       </li>
       <li>
-        <span class="wn-icon">&#x2705;</span>
-        <span class="wn-step-title">All Phase 1 Bugs Resolved</span><br>
-        Thread safety, rate limit memory growth, network spike on first poll, log flush on tab close, feedback message injection &mdash; all fixed. Test suite: 0 failures.
+        <span class="wn-icon">&#x1F50A;</span>
+        <span class="wn-step-title">Eve Voice Toggle</span><br>
+        The &#x1F50A;/&#x1F507; button in the header lets you mute and unmute Eve&rsquo;s voice at any time. Eve says goodbye before going silent and hello when she&rsquo;s back. Wes Mode keeps her on always.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F464;</span>
+        <span class="wn-step-title">Wes Mode Identity Check</span><br>
+        On first launch, Eve checks whether you&rsquo;re Wes Johnson. If yes, she skips the intro and delivers a personal message from Kris before starting your hearing calibration. A little different from your average dashboard.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F4C1;</span>
+        <span class="wn-step-title">Installer Fix &mdash; No More Permission Crashes</span><br>
+        When installed to Program Files, Windows blocks file writes &mdash; causing a silent crash on launch. User data (logs, profiles, backups) now lives in AppData where it belongs. Fresh installs are clean.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F3AE;</span>
+        <span class="wn-step-title">Live FPS Counter</span><br>
+        Real-time FPS via RTSS shared memory &mdash; plus 1% low and frametime (ms). Color-coded: green &ge;60, yellow &ge;30, red &lt;30. No software to configure; works with any game RTSS supports.
+      </li>
+      <li>
+        <span class="wn-icon">&#x1F527;</span>
+        <span class="wn-step-title">Forge Tab &mdash; Benchmarks &amp; Fan Control</span><br>
+        Run CPU single-thread, multi-thread, RAM bandwidth, and disk benchmarks from the Forge tab. Fan presets (SILENT / BALANCED / PERFORMANCE / FULL_SEND) are persisted and applied via LibreHardwareMonitor.
       </li>
     </ul>
     <div id="wn-dots"></div>

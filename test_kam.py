@@ -1353,6 +1353,89 @@ if _dash16_src:
         fail("dashboard.html: Wes Mode override missing from eveVoiceToggle()")
 
 
+# ── Crash Recovery checks ─────────────────────────────────────────────────────
+if _srv16_src:
+    if 'CRASH_LOG' in _srv16_src:
+        ok("server.py: CRASH_LOG constant defined")
+    else:
+        fail("server.py: CRASH_LOG constant missing -- crashes.jsonl path not set")
+
+    if 'CRASH_FLAG' in _srv16_src:
+        ok("server.py: CRASH_FLAG constant defined")
+    else:
+        fail("server.py: CRASH_FLAG constant missing -- crash.flag path not set")
+
+    if '_diagnose_crash' in _srv16_src:
+        ok("server.py: _diagnose_crash() helper present -- friendly crash translations")
+    else:
+        fail("server.py: _diagnose_crash() missing -- raw errors may be shown to users")
+
+    if "'/api/eve/crash'" in _srv16_src:
+        ok("server.py: /api/eve/crash endpoint registered -- crash flag consumed on startup")
+    else:
+        fail("server.py: /api/eve/crash missing -- crash recovery popup can't fetch diagnosis")
+
+    if "'/api/eve/jserror'" in _srv16_src:
+        ok("server.py: /api/eve/jserror endpoint registered -- JS errors logged from browser")
+    else:
+        fail("server.py: /api/eve/jserror missing -- window.onerror has nowhere to report")
+
+_launch16_src = ''
+try:
+    with open(os.path.join(_ROOT16, 'launch.py'), encoding='utf-8') as _f:
+        _launch16_src = _f.read()
+except Exception as _e16l:
+    fail(f"Could not read launch.py: {_e16l}")
+
+if _launch16_src:
+    if '_write_crash' in _launch16_src:
+        ok("launch.py: _write_crash() function present -- crash written to crashes.jsonl + crash.flag")
+    else:
+        fail("launch.py: _write_crash() missing -- crash details are lost on startup failure")
+
+    if '_CRASH_LOG' in _launch16_src and '_CRASH_FLAG' in _launch16_src:
+        ok("launch.py: _CRASH_LOG + _CRASH_FLAG paths defined")
+    else:
+        fail("launch.py: crash path constants missing")
+
+    if 'except Exception as _launch_exc' in _launch16_src or 'except Exception' in _launch16_src:
+        ok("launch.py: app.run() wrapped in try/except -- startup exceptions caught")
+    else:
+        fail("launch.py: no try/except around app.run() -- crash goes unlogged")
+
+if _dash16_src:
+    if 'eveCrashShow' in _dash16_src:
+        ok("dashboard.html: eveCrashShow() function present -- friendly crash popup")
+    else:
+        fail("dashboard.html: eveCrashShow() missing -- crash diagnosis has no UI")
+
+    if '/api/eve/crash' in _dash16_src:
+        ok("dashboard.html: /api/eve/crash fetched on startup -- crash recovery triggered")
+    else:
+        fail("dashboard.html: /api/eve/crash not fetched -- crash popup will never appear")
+
+    if 'window.onerror' in _dash16_src:
+        ok("dashboard.html: window.onerror reporter present -- JS errors forwarded to Eve")
+    else:
+        fail("dashboard.html: window.onerror missing -- browser JS errors go unlogged")
+
+    if '/api/eve/jserror' in _dash16_src:
+        ok("dashboard.html: /api/eve/jserror POSTed from window.onerror")
+    else:
+        fail("dashboard.html: /api/eve/jserror not used -- window.onerror has no endpoint")
+
+    # What's New null-guard check
+    if 'if (!wnDots || !wnNext || !wnProgress' in _dash16_src:
+        ok("dashboard.html: What's New null guards present -- no crash on missing elements")
+    else:
+        fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
+
+    if "WN_VER     = '1.5.16'" in _dash16_src or "WN_VER = '1.5.16'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.16 -- users see latest What's New")
+    else:
+        fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
+
+
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
