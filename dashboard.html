@@ -2212,30 +2212,24 @@ const _KRIS_MSG_SPEAK =
   "I'm Eve, and I'll be here anytime you need me.";
 
 function wesCheckIdentity() {
-  try {
-    if (localStorage.getItem('wes_identity')) return; // already answered this session
-    fetch('/api/eve/identity')
-      .then(r => r.json())
-      .then(d => {
-        try {
-          if (d.is_wes) {
-            // Username already matches — enable Wes Mode silently
-            localStorage.setItem('wes_identity', 'yes');
-            _wesAutoLaunchCalib();
-          } else {
-            const m = document.getElementById('wes-identity-modal');
-            if (m) m.classList.add('show');
-          }
-        } catch(e) { /* never crash on Wes detection */ }
-      })
-      .catch(() => {
-        try {
-          // Server unreachable — show prompt anyway
-          const m = document.getElementById('wes-identity-modal');
+  if (localStorage.getItem('wes_identity')) return; // already answered this session
+  const m = document.getElementById('wes-identity-modal');
+  fetch('/api/eve/identity')
+    .then(r => r.json())
+    .then(d => {
+      try {
+        if (d.is_wes) {
+          // Username already matches — enable Wes Mode silently
+          localStorage.setItem('wes_identity', 'yes');
+          _wesAutoLaunchCalib();
+        } else {
           if (m) m.classList.add('show');
-        } catch(e) {}
-      });
-  } catch(e) { /* skip Wes Mode gracefully on any error */ }
+        }
+      } catch(e) {}
+    })
+    .catch(() => {
+      if (m) m.classList.add('show'); // server unreachable — show prompt anyway
+    });
 }
 
 function wesConfirmYes() {
@@ -2245,7 +2239,7 @@ function wesConfirmYes() {
     if (m) m.classList.remove('show');
     _wesDeliverKrisMsg();
     // Start calibration after message has had time to breathe
-    setTimeout(() => { try { if (!localStorage.getItem('wes_calib_done')) wesToggle(); } catch(e) {} }, 4800);
+    setTimeout(() => { if (!localStorage.getItem('wes_calib_done')) wesToggle(); }, 4800);
   } catch(e) { /* skip gracefully */ }
 }
 
@@ -2268,32 +2262,30 @@ function _wesDeliverKrisMsg() {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'speak', message: _KRIS_MSG_SPEAK, hz: 3000})
     }).catch(() => {});
-    if (bub) setTimeout(() => { try { bub.classList.remove('show'); } catch(e) {} }, 18000);
+    if (bub) setTimeout(() => bub.classList.remove('show'), 18000);
   } catch(e) { /* message delivery fails silently — never crash */ }
 }
 
 function _wesAutoLaunchCalib() {
-  try {
-    const done = localStorage.getItem('wes_calib_done') === '1';
-    if (!done) {
-      fetch('/api/eve/calibration').then(r => r.json()).then(d => {
-        try {
-          if (d.calibrated) {
-            localStorage.setItem('wes_calib_done', '1');
-          } else {
-            setTimeout(async () => {
-              try {
-                _wesResetUI();
-                const cm = document.getElementById('wes-calib-modal');
-                if (cm) cm.classList.add('open');
-                await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
-              } catch(e) {}
-            }, 2800);
-          }
-        } catch(e) {}
-      }).catch(() => {});
-    }
-  } catch(e) { /* skip calibration gracefully */ }
+  const done = localStorage.getItem('wes_calib_done') === '1';
+  if (!done) {
+    fetch('/api/eve/calibration').then(r => r.json()).then(d => {
+      try {
+        if (d.calibrated) {
+          localStorage.setItem('wes_calib_done', '1');
+        } else {
+          setTimeout(async () => {
+            try {
+              _wesResetUI();
+              const cm = document.getElementById('wes-calib-modal');
+              if (cm) cm.classList.add('open');
+              await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
+            } catch(e) {}
+          }, 2800);
+        }
+      } catch(e) {}
+    }).catch(() => {});
+  }
 }
 
 // Auto-launch: identity check first, calibration only if identity is confirmed
