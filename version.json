@@ -1,22 +1,24 @@
 {
-  "version": "1.5.16",
-  "build": 26,
+  "version": "1.5.18",
+  "build": 28,
   "date": "2026-02-28",
   "channel": "stable",
-  "changelog": "v1.5.16: Crash Recovery — Eve logs startup crashes, diagnoses on next launch, JS error reporting, What's New null guards.",
+  "changelog": "v1.5.18: TTS crash hardening — pyttsx3 COM init fix + BaseException catch, bulletproof Wes Mode identity check.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
     "mac": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac",
-    "release_page": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest"
+    "release_page": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest",
+    "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: Crash logging — launch.py wraps startup in try/except, writes crashes.jsonl + crash.flag on failure",
-    "NEW: Eve crash recovery — /api/eve/crash returns friendly diagnosis; popup shown on next launch",
-    "NEW: _diagnose_crash() — maps PermissionError / ModuleNotFoundError / port conflicts to plain English",
-    "NEW: /api/eve/jserror POST — dashboard window.onerror forwards JS errors to logs/jserrors.jsonl",
-    "FIX: What's New null guards — wnBuild/wnUpdate wrapped in try/catch + null checks on all DOM refs",
-    "FIX: WN_VER updated to 1.5.16 — users see latest What's New content on next open"
+    "FIX: pyttsx3 COM crash — pythoncom.CoInitialize() called before pyttsx3.init() in TTS thread on Windows",
+    "FIX: TTS thread now catches BaseException (not just Exception) — fatal C-level COM errors can no longer kill the process",
+    "FIX: All Wes Mode identity check functions wrapped in try/catch — any failure skips Wes Mode gracefully",
+    "FIX: Null checks on all getElementById calls in Wes identity/calibration flow",
+    "FIX: DOMContentLoaded Wes auto-launch handler wrapped in try/catch",
+    "NEW: install_helper.bat — unblocks Mark of the Web on Windows before running installer",
+    "NEW: Landing page install guide — 3-step instructions + dual download buttons (exe + helper)"
   ]
 }

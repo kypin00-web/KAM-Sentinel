@@ -2212,74 +2212,101 @@ const _KRIS_MSG_SPEAK =
   "I'm Eve, and I'll be here anytime you need me.";
 
 function wesCheckIdentity() {
-  if (localStorage.getItem('wes_identity')) return; // already answered this session
-  fetch('/api/eve/identity')
-    .then(r => r.json())
-    .then(d => {
-      if (d.is_wes) {
-        // Username already matches — enable Wes Mode silently
-        localStorage.setItem('wes_identity', 'yes');
-        _wesAutoLaunchCalib();
-      } else {
-        document.getElementById('wes-identity-modal').classList.add('show');
-      }
-    })
-    .catch(() => {
-      // Server unreachable — show prompt anyway
-      document.getElementById('wes-identity-modal').classList.add('show');
-    });
+  try {
+    if (localStorage.getItem('wes_identity')) return; // already answered this session
+    fetch('/api/eve/identity')
+      .then(r => r.json())
+      .then(d => {
+        try {
+          if (d.is_wes) {
+            // Username already matches — enable Wes Mode silently
+            localStorage.setItem('wes_identity', 'yes');
+            _wesAutoLaunchCalib();
+          } else {
+            const m = document.getElementById('wes-identity-modal');
+            if (m) m.classList.add('show');
+          }
+        } catch(e) { /* never crash on Wes detection */ }
+      })
+      .catch(() => {
+        try {
+          // Server unreachable — show prompt anyway
+          const m = document.getElementById('wes-identity-modal');
+          if (m) m.classList.add('show');
+        } catch(e) {}
+      });
+  } catch(e) { /* skip Wes Mode gracefully on any error */ }
 }
 
 function wesConfirmYes() {
-  localStorage.setItem('wes_identity', 'yes');
-  document.getElementById('wes-identity-modal').classList.remove('show');
-  _wesDeliverKrisMsg();
-  // Start calibration after message has had time to breathe
-  setTimeout(() => { if (!localStorage.getItem('wes_calib_done')) wesToggle(); }, 4800);
+  try {
+    localStorage.setItem('wes_identity', 'yes');
+    const m = document.getElementById('wes-identity-modal');
+    if (m) m.classList.remove('show');
+    _wesDeliverKrisMsg();
+    // Start calibration after message has had time to breathe
+    setTimeout(() => { try { if (!localStorage.getItem('wes_calib_done')) wesToggle(); } catch(e) {} }, 4800);
+  } catch(e) { /* skip gracefully */ }
 }
 
 function wesConfirmNo() {
-  localStorage.setItem('wes_identity', 'no');
-  document.getElementById('wes-identity-modal').classList.remove('show');
+  try {
+    localStorage.setItem('wes_identity', 'no');
+    const m = document.getElementById('wes-identity-modal');
+    if (m) m.classList.remove('show');
+  } catch(e) {}
 }
 
 function _wesDeliverKrisMsg() {
-  document.getElementById('kris-msg-text').textContent = _KRIS_MSG;
-  document.getElementById('kris-msg-bubble').classList.add('show');
-  // Ask Eve to speak the clean version (no emoji) at a warm mid-range pitch
-  fetch('/api/eve/calibrate', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action:'speak', message: _KRIS_MSG_SPEAK, hz: 3000})
-  }).catch(() => {});
-  setTimeout(() => document.getElementById('kris-msg-bubble').classList.remove('show'), 18000);
+  try {
+    const txt = document.getElementById('kris-msg-text');
+    const bub = document.getElementById('kris-msg-bubble');
+    if (txt) txt.textContent = _KRIS_MSG;
+    if (bub) bub.classList.add('show');
+    // Ask Eve to speak the clean version (no emoji) at a warm mid-range pitch
+    fetch('/api/eve/calibrate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'speak', message: _KRIS_MSG_SPEAK, hz: 3000})
+    }).catch(() => {});
+    if (bub) setTimeout(() => { try { bub.classList.remove('show'); } catch(e) {} }, 18000);
+  } catch(e) { /* message delivery fails silently — never crash */ }
 }
 
 function _wesAutoLaunchCalib() {
-  const done = localStorage.getItem('wes_calib_done') === '1';
-  if (!done) {
-    fetch('/api/eve/calibration').then(r => r.json()).then(d => {
-      if (d.calibrated) {
-        localStorage.setItem('wes_calib_done', '1');
-      } else {
-        setTimeout(async () => {
-          _wesResetUI();
-          document.getElementById('wes-calib-modal').classList.add('open');
-          await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
-        }, 2800);
-      }
-    }).catch(() => {});
-  }
+  try {
+    const done = localStorage.getItem('wes_calib_done') === '1';
+    if (!done) {
+      fetch('/api/eve/calibration').then(r => r.json()).then(d => {
+        try {
+          if (d.calibrated) {
+            localStorage.setItem('wes_calib_done', '1');
+          } else {
+            setTimeout(async () => {
+              try {
+                _wesResetUI();
+                const cm = document.getElementById('wes-calib-modal');
+                if (cm) cm.classList.add('open');
+                await _wesSpeak(_WES.hz, "Hey Mr. Johnson! Can you hear me okay?");
+              } catch(e) {}
+            }, 2800);
+          }
+        } catch(e) {}
+      }).catch(() => {});
+    }
+  } catch(e) { /* skip calibration gracefully */ }
 }
 
 // Auto-launch: identity check first, calibration only if identity is confirmed
 document.addEventListener('DOMContentLoaded', () => {
-  const identity = localStorage.getItem('wes_identity');
-  if (identity === 'yes') {
-    _wesAutoLaunchCalib();
-  } else if (!identity) {
-    setTimeout(wesCheckIdentity, 1200);
-  }
-  // identity === 'no' → skip all Wes Mode
+  try {
+    const identity = localStorage.getItem('wes_identity');
+    if (identity === 'yes') {
+      _wesAutoLaunchCalib();
+    } else if (!identity) {
+      setTimeout(wesCheckIdentity, 1200);
+    }
+    // identity === 'no' → skip all Wes Mode
+  } catch(e) { /* never crash on Wes Mode init */ }
 });
 
 // ── Eve Santos — 404 Watchdog ─────────────────────────────────────────────

@@ -129,7 +129,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.16'
+VER               = '1.5.18'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1183,6 +1183,15 @@ def _eve_speak_async(message, hz=None, force=False):
         return
     def _speak():
         try:
+            # SAPI5/COM requires per-thread initialization on Windows.
+            # Must happen before pyttsx3.init() — missing this can cause a
+            # fatal C-level crash that bypasses except Exception.
+            if sys.platform == 'win32':
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except Exception:
+                    pass
             import pyttsx3
             engine = pyttsx3.init()
             for v in engine.getProperty('voices'):
@@ -1194,8 +1203,8 @@ def _eve_speak_async(message, hz=None, force=False):
             else:
                 engine.say(message)
             engine.runAndWait()
-        except Exception:
-            pass
+        except BaseException:
+            pass  # Voice failure is never fatal — Eve stays silent, app keeps running
     threading.Thread(target=_speak, daemon=True).start()
 
 

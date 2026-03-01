@@ -2,6 +2,52 @@
 
 ---
 
+## v1.5.18 — 2026-02-28
+
+### TTS Crash Hardening + Bulletproof Wes Mode
+
+Fixes a crash that could kill the process on a fresh Windows install immediately after the "Are you Wes Johnson?" popup appeared, before the user could respond.
+
+**Root cause:** `pyttsx3.init()` calls into the Windows SAPI5/COM subsystem. In a daemon thread spawned by PyInstaller without `pythoncom.CoInitialize()`, this can produce a fatal C-level crash that `except Exception` doesn't catch. Separately, missing null checks and bare DOM access in the Wes identity flow could silently corrupt JS state.
+
+#### `server.py`
+- **`_eve_speak_async._speak()`** — calls `pythoncom.CoInitialize()` (with its own `try/except`) before `pyttsx3.init()` on Windows, ensuring COM is ready for the thread
+- Changed `except Exception` → `except BaseException` — catches fatal COM errors and any other non-Exception throwable that would previously kill the process
+- Voice failure is completely silent: Eve shows text, keeps running, no crash
+
+#### `dashboard.html`
+- **`wesCheckIdentity()`** — full `try/catch` wrapper; null checks on `getElementById('wes-identity-modal')` in both `.then()` and `.catch()` paths
+- **`wesConfirmYes()`** — `try/catch`; null check on modal element; inner `setTimeout` callback wrapped in `try/catch`
+- **`wesConfirmNo()`** — `try/catch`; null check on modal element
+- **`_wesDeliverKrisMsg()`** — `try/catch`; null checks on `kris-msg-text` and `kris-msg-bubble`; `setTimeout` dismiss wrapped in `try/catch`
+- **`_wesAutoLaunchCalib()`** — `try/catch` at top level; inner `then()` and `setTimeout` async callbacks each wrapped in `try/catch`; null check on `wes-calib-modal` element
+- **DOMContentLoaded Wes handler** — wrapped in `try/catch`; any failure skips Wes Mode entirely and lets normal launch proceed
+
+---
+
+## v1.5.17 — 2026-02-28
+
+### Windows Mark of the Web — Install Helper
+
+Addresses Windows SmartScreen/MOTW blocking `KAM_Sentinel_Setup.exe` on fresh installs without requiring a code-signing certificate.
+
+#### `scripts/install_helper.bat` (new)
+- Runs `PowerShell -Command "Unblock-File"` on `KAM_Sentinel_Setup.exe` in the same folder
+- Immediately launches the installer after unblocking
+- Shipped as a GitHub Release asset alongside the exe
+
+#### `.github/workflows/deploy.yml`
+- `scripts/install_helper.bat` added to the `files:` block in the release step — available on every `v*` tag
+
+#### `docs/index.html`
+- **[Download Install Helper]** button (Eve-pink `.btn-helper`) added next to the main Windows download
+- **Install guide panel** (`.install-note`) — signed by Eve, explains the 3-step process:
+  1. Download Install Helper
+  2. Put both files in the same folder
+  3. Double-click `install_helper.bat`
+
+---
+
 ## v1.5.16 — 2026-02-28
 
 ### Crash Recovery — Eve Diagnoses Startup Failures
