@@ -161,5 +161,6 @@ jobs:
           dist/KAM_Sentinel_Windows.exe
           dist/KAM_Sentinel_Mac
           version.json
+          scripts/install_helper.bat
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

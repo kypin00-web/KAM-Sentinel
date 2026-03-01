@@ -132,6 +132,70 @@
       padding: 12px 20px;
     }
     .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
+    .btn-helper {
+      background: transparent;
+      color: #ff6b9d;
+      border: 1px solid rgba(255,107,157,.4);
+      font-size: .88rem;
+      padding: 12px 22px;
+    }
+    .btn-helper:hover { border-color: #ff6b9d; box-shadow: 0 0 16px rgba(255,107,157,.2); }
+
+    /* ── INSTALL HELPER NOTE ── */
+    .install-note {
+      margin-top: 20px;
+      max-width: 520px;
+      background: rgba(255,107,157,.06);
+      border: 1px solid rgba(255,107,157,.25);
+      border-radius: 8px;
+      padding: 16px 20px;
+      text-align: left;
+    }
+    .install-note-header {
+      font-family: monospace;
+      font-size: .68rem;
+      letter-spacing: 2px;
+      color: #ff6b9d;
+      margin-bottom: 10px;
+    }
+    .install-note p {
+      font-size: .82rem;
+      color: var(--dim);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .install-steps {
+      list-style: none;
+      counter-reset: step;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .install-steps li {
+      counter-increment: step;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: .82rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .install-steps li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255,107,157,.15);
+      border: 1px solid rgba(255,107,157,.4);
+      color: #ff6b9d;
+      font-family: monospace;
+      font-size: .72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     /* ── FEATURES ── */
     .features {
@@ -200,7 +264,7 @@
 <nav>
   <img src="assets/kam_logo.svg" width="32" height="32" alt="KAM Sentinel shield logo" style="display:block;">
   <span class="logo-rest">AM SENTINEL</span>
-  <span class="nav-tag">v1.5.12 STABLE</span>
+  <span class="nav-tag">v1.5.18 STABLE</span>
 </nav>
 
 <main class="hero">
@@ -214,7 +278,11 @@
   <div class="dl-group">
     <a class="btn btn-primary"
        href="https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe">
-      ⬇ Download for Windows
+      ⬇ Download KAM Sentinel
+    </a>
+    <a class="btn btn-helper"
+       href="https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat">
+      ⬇ Download Install Helper
     </a>
     <a class="btn btn-secondary"
        href="https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Mac">
@@ -224,6 +292,19 @@
        href="https://github.com/kypin00-web/KAM-Sentinel/releases">
       All Releases
     </a>
+  </div>
+
+  <div class="install-note">
+    <div class="install-note-header">WINDOWS INSTALL GUIDE — FROM EVE &#x1F495;</div>
+    <p>
+      First time installing? Windows may block the installer because it's not code-signed yet.
+      Download the Install Helper below — it unblocks and launches everything automatically. 💕 — Eve
+    </p>
+    <ol class="install-steps">
+      <li>Download <strong>Install Helper</strong> (the .bat file above)</li>
+      <li>Put both files in the <strong>same folder</strong> (e.g. your Downloads folder)</li>
+      <li>Double-click <strong>install_helper.bat</strong> — it does the rest</li>
+    </ol>
   </div>
 
   <div class="features">
