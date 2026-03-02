@@ -125,11 +125,12 @@ PROF_DIR           = os.path.join(DATA_DIR, 'profiles')
 BASELINE           = os.path.join(PROF_DIR, 'baseline.json')
 ORIG_PROFILE_FILE  = os.path.join(BACKUP_DIR, 'original_system_profile.json')
 ACCESSIBILITY_FILE = os.path.join(PROF_DIR, 'accessibility.json')
+PREF_FILE          = os.path.join(PROF_DIR, 'preferences.json')
 CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.18'
+VER               = '1.5.19'
 UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -947,10 +948,9 @@ def api_feedback():
     if not msg.strip(): return jsonify(error='No message'), 400
 
     ip = request.remote_addr or '127.0.0.1'
-    if _fb_rate_limited(ip):
-        return jsonify(error='Too many feedback submissions — please wait a minute.'), 429
     if _fb_duplicate(cat, msg):
         return jsonify(error='Duplicate feedback — this report was already received.'), 429
+    # Unique messages are never rate-limited — only duplicate spam is blocked
 
     pri, act = 'normal', None
     kw = msg.lower()
@@ -1386,6 +1386,39 @@ def api_eve_jserror():
     except Exception as e:
         _log_err('api_eve_jserror', e)
     return jsonify(ok=True)
+
+
+@app.route('/api/preferences', methods=['GET', 'POST'])
+def api_preferences():
+    """Read/write user preferences (temp_unit, dark_mode) to profiles/preferences.json."""
+    if request.method == 'GET':
+        if os.path.exists(PREF_FILE):
+            try:
+                with open(PREF_FILE, encoding='utf-8') as f:
+                    return jsonify(json.load(f))
+            except Exception:
+                pass
+        return jsonify(temp_unit='F', dark_mode=False)
+    d = request.get_json(silent=True) or {}
+    prefs = {}
+    if os.path.exists(PREF_FILE):
+        try:
+            with open(PREF_FILE, encoding='utf-8') as f:
+                prefs = json.load(f)
+        except Exception:
+            pass
+    if 'temp_unit' in d and d['temp_unit'] in ('F', 'C'):
+        prefs['temp_unit'] = d['temp_unit']
+    if 'dark_mode' in d and isinstance(d['dark_mode'], bool):
+        prefs['dark_mode'] = d['dark_mode']
+    try:
+        os.makedirs(PROF_DIR, exist_ok=True)
+        with open(PREF_FILE, 'w', encoding='utf-8') as f:
+            json.dump(prefs, f)
+        return jsonify(status='ok', **prefs)
+    except Exception as e:
+        _log_err('api_preferences', e)
+        return jsonify(error=str(e)), 500
 
 
 if __name__ == '__main__':

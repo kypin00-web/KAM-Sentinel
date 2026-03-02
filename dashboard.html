@@ -102,6 +102,28 @@ header {
   cursor:pointer; outline:none;
 }
 .refresh-select option { background: var(--bg2); color:var(--text); }
+.unit-toggle {
+  display:flex; align-items:center;
+  background: var(--bg3); border:1px solid var(--border2); border-radius:4px; overflow:hidden;
+  font-family:'Share Tech Mono',monospace; font-size:.7rem;
+}
+.unit-btn {
+  padding:4px 8px; cursor:pointer; border:none; background:transparent;
+  color:var(--dim2); transition:color .15s, background .15s;
+}
+.unit-btn.active { background:var(--bg4); color:var(--cyan); }
+
+/* ── DARK MODE OVERLAY — deeper blacks, higher contrast ─────────────────── */
+body.kam-dark-overlay {
+  --bg:      #000002;
+  --bg2:     #030508;
+  --bg3:     #05080e;
+  --bg4:     #070b13;
+  --border:  #0d1520;
+  --border2: #122030;
+  --text:    #deedf7;
+  --dim2:    #4d6580;
+}
 
 /* ── OVERLAY ─────────────────────────────────────────────────────────────── */
 #kam-overlay {
@@ -783,6 +805,11 @@ footer {
         <option value="60000">60s</option>
       </select>
     </div>
+    <div class="unit-toggle" title="Temperature unit">
+      <button class="unit-btn active" id="unit-btn-f" onclick="toggleTempUnit('F')">°F</button>
+      <button class="unit-btn" id="unit-btn-c" onclick="toggleTempUnit('C')">°C</button>
+    </div>
+    <button class="settings-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Dark mode overlay">🌙</button>
     <button class="settings-btn" id="overlay-btn" onclick="toggleOverlay()">⊞ OVERLAY</button>
     <button class="settings-btn" id="diag-test-btn" onclick="toggleDiagTestMode()" title="Simulate N/A states for testing">🧪 TEST MODE</button>
     <button class="settings-btn" id="eve-voice-btn" onclick="eveVoiceToggle()" title="Eve voice on — click to mute">🔊</button>
@@ -915,7 +942,7 @@ footer {
 
     <div class="chart-card">
       <div class="chart-hdr">
-        <span class="chart-title">TEMPERATURE (°C)</span>
+        <span class="chart-title" id="chart-temp-title">TEMPERATURE (°F)</span>
         <div class="chart-legend">
           <div class="leg-item"><div class="leg-dot" style="background:var(--cyan)"></div>CPU</div>
           <div class="leg-item"><div class="leg-dot" style="background:var(--orange)"></div>GPU</div>
@@ -1010,7 +1037,7 @@ footer {
     <div class="modal-detected" id="modal-detected">Detected hardware: loading...</div>
 
     <div class="threshold-group">
-      <div class="tg-title">CPU TEMPERATURE (°C)</div>
+      <div class="tg-title" id="t-cpu-temp-title">CPU TEMPERATURE (°F)</div>
       <div class="tg-grid">
         <div class="tg-field"><label class="tg-label">⚡ Warning at</label><input class="tg-input" id="t-cpu-temp-warn" type="number" step="1"></div>
         <div class="tg-field"><label class="tg-label">🔴 Critical at</label><input class="tg-input" id="t-cpu-temp-crit" type="number" step="1"></div>
@@ -1018,7 +1045,7 @@ footer {
     </div>
 
     <div class="threshold-group">
-      <div class="tg-title">GPU TEMPERATURE (°C)</div>
+      <div class="tg-title" id="t-gpu-temp-title">GPU TEMPERATURE (°F)</div>
       <div class="tg-grid">
         <div class="tg-field"><label class="tg-label">⚡ Warning at</label><input class="tg-input" id="t-gpu-temp-warn" type="number" step="1"></div>
         <div class="tg-field"><label class="tg-label">🔴 Critical at</label><input class="tg-input" id="t-gpu-temp-crit" type="number" step="1"></div>
@@ -1221,6 +1248,20 @@ const line = (color, label) => ({
 
 let chartUsage, chartTemp;
 
+// ── Temperature unit & dark mode preferences ──────────────────────────────
+let _tempUnit = 'F';  // default: Fahrenheit
+let _darkMode = false;
+
+function toDisplayTemp(c) {
+  if (c === null || c === undefined) return null;
+  return _tempUnit === 'F' ? Math.round(c * 9 / 5 + 32) : c;
+}
+function fromDisplayTemp(d) {
+  if (isNaN(d)) return d;
+  return _tempUnit === 'F' ? Math.round((d - 32) * 5 / 9 * 10) / 10 : d;
+}
+function tempUnitLabel() { return _tempUnit === 'F' ? '°F' : '°C'; }
+
 function initCharts() {
   chartUsage = mkChart('chart-usage', [
     line('rgb(0,212,255)', 'CPU %'),
@@ -1228,9 +1269,9 @@ function initCharts() {
   ], 100);
 
   chartTemp = mkChart('chart-temp', [
-    line('rgb(0,212,255)', 'CPU °C'),
-    line('rgb(255,112,67)', 'GPU °C'),
-  ], 100);
+    line('rgb(0,212,255)', 'CPU °F'),
+    line('rgb(255,112,67)', 'GPU °F'),
+  ], 220);
 }
 
 function pushChart(chart, label, ...vals) {
@@ -1286,7 +1327,7 @@ async function fetchStats() {
     // CPU
     DOM['cpu-usage'].textContent   = cpu.usage ?? '--';
     DOM['cpu-bar'].style.width     = (cpu.usage||0) + '%';
-    DOM['cpu-temp'].textContent    = cpu.temp !== null ? cpu.temp + ' °C' : 'N/A';
+    DOM['cpu-temp'].textContent    = cpu.temp !== null ? toDisplayTemp(cpu.temp) + ' ' + tempUnitLabel() : 'N/A';
     DOM['cpu-temp'].className      = 'cd-v ' + tempClass(cpu.temp, 75, 90);
     DOM['cpu-volt'].textContent    = cpu.voltage !== null ? cpu.voltage + ' V' : 'N/A';
     DOM['cpu-freq'].textContent    = cpu.freq_ghz !== null ? cpu.freq_ghz + ' GHz' : 'N/A';
@@ -1295,7 +1336,7 @@ async function fetchStats() {
     // GPU
     DOM['gpu-usage'].textContent   = gpu.usage !== null ? gpu.usage : '--';
     DOM['gpu-bar'].style.width     = (gpu.usage||0) + '%';
-    DOM['gpu-temp'].textContent    = gpu.temp !== null ? gpu.temp + ' °C' : 'N/A';
+    DOM['gpu-temp'].textContent    = gpu.temp !== null ? toDisplayTemp(gpu.temp) + ' ' + tempUnitLabel() : 'N/A';
     DOM['gpu-temp'].className      = 'cd-v ' + tempClass(gpu.temp, 80, 95);
     DOM['gpu-vram'].textContent    = gpu.vram_used !== null ? `${gpu.vram_used} / ${gpu.vram_total} MB` : 'N/A';
     DOM['gpu-name'].textContent    = gpu.name || 'N/A';
@@ -1323,8 +1364,8 @@ async function fetchStats() {
       chartUsage.data.datasets[0].data        = h.cpu_usage;
       chartUsage.data.datasets[1].data        = h.gpu_usage;
       chartTemp.data.labels                   = labels;
-      chartTemp.data.datasets[0].data         = h.cpu_temp;
-      chartTemp.data.datasets[1].data         = h.gpu_temp;
+      chartTemp.data.datasets[0].data         = h.cpu_temp.map(v => v !== null ? toDisplayTemp(v) : null);
+      chartTemp.data.datasets[1].data         = h.gpu_temp.map(v => v !== null ? toDisplayTemp(v) : null);
       chartUsage.update('none');
       chartTemp.update('none');
     }
@@ -1398,10 +1439,10 @@ async function loadThresholds() {
 
 function populateModal(t) {
   const set = (id, val) => { const el=document.getElementById(id); if(el&&val!=null) el.value=val; };
-  set('t-cpu-temp-warn', t.cpu?.temp_warn);
-  set('t-cpu-temp-crit', t.cpu?.temp_crit);
-  set('t-gpu-temp-warn', t.gpu?.temp_warn);
-  set('t-gpu-temp-crit', t.gpu?.temp_crit);
+  set('t-cpu-temp-warn', toDisplayTemp(t.cpu?.temp_warn));
+  set('t-cpu-temp-crit', toDisplayTemp(t.cpu?.temp_crit));
+  set('t-gpu-temp-warn', toDisplayTemp(t.gpu?.temp_warn));
+  set('t-gpu-temp-crit', toDisplayTemp(t.gpu?.temp_crit));
   set('t-volt-min',      t.voltage?.cpu_min);
   set('t-volt-max',      t.voltage?.cpu_max);
   set('t-cpu-use-warn',  t.cpu?.usage_warn);
@@ -1422,10 +1463,10 @@ function closeSettings() { DOM['settings-modal'].classList.remove('open'); }
 async function saveThresholds() {
   const get = id => parseFloat(document.getElementById(id)?.value);
   const payload = {
-    cpu:     { temp_warn:get('t-cpu-temp-warn'), temp_crit:get('t-cpu-temp-crit'),
+    cpu:     { temp_warn:fromDisplayTemp(get('t-cpu-temp-warn')), temp_crit:fromDisplayTemp(get('t-cpu-temp-crit')),
                usage_warn:get('t-cpu-use-warn'), usage_crit:get('t-cpu-use-crit'),
                usage_sustain_sec:get('t-cpu-sustain') },
-    gpu:     { temp_warn:get('t-gpu-temp-warn'), temp_crit:get('t-gpu-temp-crit'),
+    gpu:     { temp_warn:fromDisplayTemp(get('t-gpu-temp-warn')), temp_crit:fromDisplayTemp(get('t-gpu-temp-crit')),
                usage_warn:get('t-gpu-use-warn'), usage_crit:get('t-gpu-use-crit'),
                usage_sustain_sec:get('t-gpu-sustain') },
     ram:     { usage_warn:get('t-ram-warn'), usage_crit:get('t-ram-crit') },
@@ -1627,6 +1668,78 @@ function updateRefreshRate(ms) {
   localStorage.setItem('kam_refresh_ms', ms);
 }
 
+// ── Temperature unit toggle ────────────────────────────────────────────────
+function toggleTempUnit(unit) {
+  if (_tempUnit === unit) return;
+  _tempUnit = unit;
+  document.getElementById('unit-btn-f').classList.toggle('active', unit === 'F');
+  document.getElementById('unit-btn-c').classList.toggle('active', unit === 'C');
+  _applyTempUnit();
+  fetch('/api/preferences', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ temp_unit: unit })
+  }).catch(() => {});
+  // Wes Mode: Eve announces the change
+  if (localStorage.getItem('wes_identity') === 'yes') {
+    const msg = unit === 'F'
+      ? "Switched to Fahrenheit for you! \uD83D\uDC95"
+      : "Switched to Celsius! Stay cool! \uD83C\uDF21\uFE0F";
+    _wesSpeak(_WES.hz, msg);
+  }
+}
+
+function _applyTempUnit(andRefresh = true) {
+  const chartTitle = document.getElementById('chart-temp-title');
+  if (chartTitle) chartTitle.textContent = `TEMPERATURE (${tempUnitLabel()})`;
+  const cpuTT = document.getElementById('t-cpu-temp-title');
+  const gpuTT = document.getElementById('t-gpu-temp-title');
+  if (cpuTT) cpuTT.textContent = `CPU TEMPERATURE (${tempUnitLabel()})`;
+  if (gpuTT) gpuTT.textContent = `GPU TEMPERATURE (${tempUnitLabel()})`;
+  if (chartTemp) {
+    chartTemp.data.datasets[0].label = `CPU ${tempUnitLabel()}`;
+    chartTemp.data.datasets[1].label = `GPU ${tempUnitLabel()}`;
+    chartTemp.options.scales.y.max = _tempUnit === 'F' ? 220 : 100;
+  }
+  if (Object.keys(_thresholds).length) populateModal(_thresholds);
+  if (andRefresh) fetchStats(); // re-render cards and charts with new unit
+}
+
+// ── Dark mode overlay toggle ───────────────────────────────────────────────
+function toggleDarkMode() {
+  _darkMode = !_darkMode;
+  document.body.classList.toggle('kam-dark-overlay', _darkMode);
+  const btn = document.getElementById('dark-mode-btn');
+  if (btn) {
+    btn.style.borderColor = _darkMode ? 'var(--purple)' : '';
+    btn.style.color       = _darkMode ? 'var(--purple)' : '';
+  }
+  fetch('/api/preferences', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ dark_mode: _darkMode })
+  }).catch(() => {});
+}
+
+// ── Load saved preferences from server ────────────────────────────────────
+async function loadPreferences() {
+  try {
+    const r = await fetch('/api/preferences');
+    if (!r.ok) return;
+    const p = await r.json();
+    if (p.temp_unit === 'C') {
+      _tempUnit = 'C';
+      document.getElementById('unit-btn-f')?.classList.remove('active');
+      document.getElementById('unit-btn-c')?.classList.add('active');
+    }
+    if (p.dark_mode) {
+      _darkMode = true;
+      document.body.classList.add('kam-dark-overlay');
+      const btn = document.getElementById('dark-mode-btn');
+      if (btn) { btn.style.borderColor = 'var(--purple)'; btn.style.color = 'var(--purple)'; }
+    }
+    _applyTempUnit(false); // init() calls fetchStats after this
+  } catch(_) {}
+}
+
 // ── Overlay state ─────────────────────────────────────────────────────────
 const _ovState = { cpu:true, gpu:true, ram:true, temp:true };
 let _overlayVisible = false;
@@ -1661,7 +1774,7 @@ function updateOverlay(cpu, gpu, ram) {
     el('ov-cpu').className = 'overlay-val ' + tempClass(cpu.usage, 80, 95);
   }
   if(_ovState.temp && cpu.temp !== null) {
-    el('ov-cpu-temp').textContent = cpu.temp + '°C';
+    el('ov-cpu-temp').textContent = toDisplayTemp(cpu.temp) + tempUnitLabel();
     el('ov-cpu-temp').className = 'overlay-val ' + tempClass(cpu.temp, 75, 90);
   }
   if(_ovState.gpu && gpu.usage !== null) {
@@ -1669,7 +1782,7 @@ function updateOverlay(cpu, gpu, ram) {
     el('ov-gpu').className = 'overlay-val ' + tempClass(gpu.usage, 85, 97);
   }
   if(_ovState.temp && gpu.temp !== null) {
-    el('ov-gpu-temp').textContent = gpu.temp + '°C';
+    el('ov-gpu-temp').textContent = toDisplayTemp(gpu.temp) + tempUnitLabel();
     el('ov-gpu-temp').className = 'overlay-val ' + tempClass(gpu.temp, 80, 95);
   }
   if(_ovState.ram) {
@@ -1716,6 +1829,7 @@ async function init() {
   initCharts();
   await loadSystemInfo();
   await loadThresholds();
+  await loadPreferences();
   DOM['loading-msg'].textContent = 'LOADING METRICS...';
   await fetchStats();
   DOM['loading'].style.opacity    = '0';
@@ -1914,7 +2028,7 @@ function _showBenchResult(r) {
 
   if(st)   st.textContent   = r.cpu_st   ? r.cpu_st.score.toLocaleString() : '—';
   if(mt)   mt.textContent   = r.cpu_mt   ? r.cpu_mt.score.toLocaleString() : '—';
-  if(temp) temp.textContent = r.temp_peak ? r.temp_peak + '°C' : '—';
+  if(temp) temp.textContent = r.temp_peak ? toDisplayTemp(r.temp_peak) + tempUnitLabel() : '—';
 
   function _applyDelta(el, cur, base) {
     if(!el || !cur || !base) return;
@@ -1953,7 +2067,7 @@ async function _refreshBenchHistory() {
       const date = (run.date || '').substring(0, 16).replace('T', ' ');
       const st   = run.cpu_st   ? run.cpu_st.score.toLocaleString()   : '—';
       const mt   = run.cpu_mt   ? run.cpu_mt.score.toLocaleString()   : '—';
-      const tmp  = run.temp_peak ? run.temp_peak + '°C' : '—';
+      const tmp  = run.temp_peak ? toDisplayTemp(run.temp_peak) + tempUnitLabel() : '—';
       const tag  = run.baseline ? '<span class="baseline-tag">BASE</span>' : '';
       return `<tr><td>${date}</td><td>${st}</td><td>${mt}</td><td>${tmp}</td><td>${tag}</td></tr>`;
     }).join('');
@@ -1972,7 +2086,7 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.16';
+  const WN_VER     = '1.5.19';
   let wnStep = 0;
   let wnSteps, wnDots, wnNext, wnProgress;
 

@@ -1,9 +1,9 @@
 {
-  "version": "1.5.18",
-  "build": 28,
-  "date": "2026-02-28",
+  "version": "1.5.19",
+  "build": 29,
+  "date": "2026-03-02",
   "channel": "stable",
-  "changelog": "v1.5.18: TTS crash hardening — pyttsx3 COM init fix + BaseException catch, bulletproof Wes Mode identity check.",
+  "changelog": "v1.5.19: Temperature units (°F default + °C toggle), dark mode overlay, feedback dedup fix.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,12 +13,10 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: pyttsx3 COM crash — pythoncom.CoInitialize() called before pyttsx3.init() in TTS thread on Windows",
-    "FIX: TTS thread now catches BaseException (not just Exception) — fatal C-level COM errors can no longer kill the process",
-    "FIX: All Wes Mode identity check functions wrapped in try/catch — any failure skips Wes Mode gracefully",
-    "FIX: Null checks on all getElementById calls in Wes identity/calibration flow",
-    "FIX: DOMContentLoaded Wes auto-launch handler wrapped in try/catch",
-    "NEW: install_helper.bat — unblocks Mark of the Web on Windows before running installer",
-    "NEW: Landing page install guide — 3-step instructions + dual download buttons (exe + helper)"
+    "NEW: Temperature units — °F by default, °F/°C toggle in header. Converts all temps: CPU, GPU, thresholds, charts, history, benchmarks.",
+    "NEW: Preference saved to profiles/preferences.json — survives restarts",
+    "NEW: Wes Mode — Eve announces unit switch: 'Switched to Fahrenheit for you! 💕'",
+    "NEW: Dark mode overlay — 🌙 toggle in header for deeper blacks and higher contrast",
+    "FIX: Feedback rate limiter no longer silently drops unique messages — only duplicate spam is blocked"
   ]
 }

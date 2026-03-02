@@ -462,6 +462,10 @@ try:
         ('Bench quick button present',    'bench-quick-btn' in html),
         ('Bench score display present',   'bsr-st' in html),
         ('Bench history section present', 'bench-history' in html),
+        ('Temp unit toggle present',      'unit-btn-f' in html and 'unit-btn-c' in html),
+        ('Dark mode toggle present',      'dark-mode-btn' in html and 'toggleDarkMode' in html),
+        ('Temp unit JS helpers',          'toDisplayTemp' in html and 'fromDisplayTemp' in html),
+        ('Preferences endpoint in JS',    'api/preferences' in html),
     ]
     for name, result in checks:
         if result:
@@ -604,6 +608,7 @@ try:
         ('/api/diagnostics',      200),
         ('/api/feedback/queue',   200),
         ('/api/version',          200),
+        ('/api/preferences',      200),
         ('/api/baseline',         (200, 404)),    # 404 OK on clean run
         ('/api/original_profile', (200, 404)),    # 404 OK on clean run
     ]
@@ -1150,6 +1155,16 @@ if _srv16_src:
     else:
         fail("ACCESSIBILITY_FILE constant missing from server.py")
 
+    if 'PREF_FILE' in _srv16_src:
+        ok("PREF_FILE constant defined in server.py -- preferences.json path")
+    else:
+        fail("PREF_FILE constant missing from server.py")
+
+    if "'/api/preferences'" in _srv16_src:
+        ok("/api/preferences endpoint registered")
+    else:
+        fail("/api/preferences endpoint missing -- temp unit and dark mode won't persist")
+
     if "'/api/eve/calibration'" in _srv16_src:
         ok("/api/eve/calibration endpoint registered")
     else:
@@ -1430,8 +1445,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.16'" in _dash16_src or "WN_VER = '1.5.16'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.16 -- users see latest What's New")
+    if "WN_VER     = '1.5.19'" in _dash16_src or "WN_VER = '1.5.19'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.19 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 
