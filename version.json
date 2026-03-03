@@ -1,9 +1,9 @@
 {
-  "version": "1.5.29",
-  "build": 36,
+  "version": "1.5.30",
+  "build": 37,
   "date": "2026-03-03",
   "channel": "stable",
-  "changelog": "v1.5.29: Dynamic footer, cache-busting, post-update reload, smart What's New",
+  "changelog": "v1.5.30: Wes Mode removed, clean production build",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,13 +13,9 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: Footer version pulled from /api/version -- no more hardcoded stale strings",
-    "FIX: \"Phase 1\" removed from footer",
-    "FIX: Flask sends no-store Cache-Control -- Chrome no longer caches stale dashboard",
-    "FIX: location.reload(true) after installer launches -- new version shows immediately",
-    "NEW: What's New tracks last-seen version in preferences.json (survives reinstalls)",
-    "NEW: What's New only shows updates newer than last seen -- no repeat popups",
-    "NEW: What's New header button lets user open it manually any time",
-    "NEW: data-since attributes on all steps enable per-update filtering"
+    "CLEAN: Wes Mode / hearing calibration extracted to standalone Hearing Reborn bundle",
+    "CLEAN: TEST MODE button removed from production header",
+    "CLEAN: Eve voice and 404-alert popup fully intact",
+    "NEW: What's New v1.5.30 step added"
   ]
 }

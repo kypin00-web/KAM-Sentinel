@@ -152,7 +152,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.29'
+VER               = '1.5.30'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1195,13 +1195,10 @@ def _eve_sapi_pitch(hz):
 
 
 def _eve_voice_enabled():
-    """Return True if Eve's voice is on (default). Wes Mode always returns True."""
+    """Return True if Eve's voice is on (default)."""
     try:
         if os.path.exists(ACCESSIBILITY_FILE):
             prof = json.load(open(ACCESSIBILITY_FILE, encoding='utf-8'))
-            # Wes Mode (calibrated profile) is always audible regardless of toggle
-            if prof.get('calibrated') or prof.get('preferred_hz') is not None:
-                return True
             return bool(prof.get('eve_voice', True))
     except Exception:
         pass
@@ -1280,72 +1277,6 @@ def api_eve_voice_set():
             force=True
         )
     return jsonify(ok=True, eve_voice=enabled)
-
-
-@app.route('/api/eve/calibration')
-def api_eve_calibration():
-    if os.path.exists(ACCESSIBILITY_FILE):
-        try:
-            with open(ACCESSIBILITY_FILE, encoding='utf-8') as f:
-                return jsonify(json.load(f))
-        except Exception as e:
-            _log_err('api_eve_calibration', e)
-    return jsonify(calibrated=False)
-
-
-@app.route('/api/eve/calibrate', methods=['POST'])
-def api_eve_calibrate():
-    d      = request.get_json(silent=True) or {}
-    action = d.get('action', '')
-    hz     = max(2000, min(8000, int(d.get('hz', 3000))))
-
-    if action == 'speak':
-        msg = str(d.get('message', 'How about now? Better, worse, or the same?'))[:300]
-        _eve_speak_async(msg, hz=hz)
-        return jsonify(ok=True, hz=hz)
-
-    if action == 'save':
-        profile = {
-            'user':          'Wes',
-            'preferred_hz':  hz,
-            'calibrated':    True,
-            'calibrated_at': datetime.date.today().isoformat(),
-        }
-        try:
-            os.makedirs(PROF_DIR, exist_ok=True)
-            with open(ACCESSIBILITY_FILE, 'w', encoding='utf-8') as f:
-                json.dump(profile, f, indent=2)
-        except Exception as e:
-            _log_err('api_eve_calibrate_save', e)
-            return jsonify(error='Could not save profile'), 500
-        _eve_speak_async(
-            "Perfect! I will always speak at this pitch for you. You are so welcome!", hz=hz
-        )
-        return jsonify(ok=True, message="I\u2019ll remember that \U0001f495 \u2014 Eve", profile=profile)
-
-    return jsonify(error='Unknown action. Use speak or save.'), 400
-
-
-@app.route('/api/eve/bluetooth', methods=['POST'])
-def api_eve_bluetooth():
-    try:
-        if sys.platform == 'win32':
-            os.startfile('ms-settings:bluetooth')  # os.startfile avoids subprocess entirely
-        elif sys.platform == 'darwin':
-            subprocess.Popen(['open', 'x-apple.systempreferences:com.apple.preferences.Bluetooth'])
-        else:
-            subprocess.Popen(['xdg-open', 'bluetooth:'])
-    except Exception as e:
-        _log_err('api_eve_bluetooth', e)
-        return jsonify(error='Could not open Bluetooth settings'), 500
-    return jsonify(ok=True, message='Opening Bluetooth settings \U0001f4f2 \u2014 Eve')
-
-
-@app.route('/api/eve/identity')
-def api_eve_identity():
-    username = (os.environ.get('USERNAME') or os.environ.get('USER') or '').lower()
-    is_wes = any(n in username for n in ('wes', 'johnson'))
-    return jsonify(username=username, is_wes=is_wes)
 
 
 @app.route('/api/eve/fix', methods=['POST'])

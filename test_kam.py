@@ -1157,10 +1157,10 @@ else:
 
 
 # =============================================================================
-# Section 16: Wes Mode — Hearing Frequency Calibration
+# Section 16: Eve Santos & Crash Recovery
 # =============================================================================
 import re as _re16
-section("16. Wes Mode — Hearing Frequency Calibration")
+section("16. Eve Santos & Crash Recovery")
 
 _ROOT16 = os.path.dirname(os.path.abspath(__file__))
 
@@ -1203,31 +1203,10 @@ if _srv16_src:
     else:
         fail("_validate_update_url() missing -- arbitrary URLs could be downloaded")
 
-    if "'/api/eve/calibration'" in _srv16_src:
-        ok("/api/eve/calibration endpoint registered")
-    else:
-        fail("/api/eve/calibration endpoint missing -- Wes Mode calibration state unavailable")
-
-    if "'/api/eve/calibrate'" in _srv16_src and "methods=['POST']" in _srv16_src:
-        ok("/api/eve/calibrate POST endpoint registered")
-    else:
-        fail("/api/eve/calibrate POST missing -- calibration speak/save won't work")
-
-    if "'/api/eve/bluetooth'" in _srv16_src:
-        ok("/api/eve/bluetooth endpoint registered")
-    else:
-        fail("/api/eve/bluetooth endpoint missing -- Bluetooth settings shortcut unavailable")
-
     if '_eve_speak_async' in _srv16_src:
-        ok("_eve_speak_async() helper present -- avoids duplicate pyttsx3 code")
+        ok("_eve_speak_async() helper present -- Eve TTS wired in server")
     else:
-        fail("_eve_speak_async() not found -- Eve's calibrated voice won't work from server")
-
-    # Hz range guard: max(2000, min(8000, ...))
-    if 'max(2000, min(8000,' in _srv16_src:
-        ok("Hz clamped to 2000–8000 range in /api/eve/calibrate")
-    else:
-        fail("Hz not clamped -- out-of-range values accepted by /api/eve/calibrate")
+        fail("_eve_speak_async() not found -- Eve's voice won't work from server")
 
 # ── bugwatcher.py checks ──────────────────────────────────────────────────────
 _bw16_src = ''
@@ -1288,74 +1267,6 @@ try:
 except Exception as _e16d:
     fail(f"Could not read dashboard.html: {_e16d}")
 
-if _dash16_src:
-    if 'wes-calib-modal' in _dash16_src:
-        ok("dashboard.html: Wes Mode calibration modal present")
-    else:
-        fail("dashboard.html: wes-calib-modal missing -- calibration UI not rendered")
-
-    if 'wesToggle' in _dash16_src:
-        ok("dashboard.html: wesToggle() function present -- WES MODE button wired")
-    else:
-        fail("dashboard.html: wesToggle() missing -- Wes Mode button has no handler")
-
-    if 'wesRecalibrate' in _dash16_src:
-        ok("dashboard.html: wesRecalibrate() present -- overlay Tune Eve's voice button wired")
-    else:
-        fail("dashboard.html: wesRecalibrate() missing -- re-calibration button won't work")
-
-    if 'calibResponse' in _dash16_src:
-        ok("dashboard.html: calibResponse() state machine present")
-    else:
-        fail("dashboard.html: calibResponse() missing -- calibration buttons have no handler")
-
-    if 'wesOpenBluetooth' in _dash16_src:
-        ok("dashboard.html: wesOpenBluetooth() present -- Bluetooth fallback at 8000 Hz wired")
-    else:
-        fail("dashboard.html: wesOpenBluetooth() missing -- no Bluetooth fallback at Hz ceiling")
-
-    if 'wes_calib_done' in _dash16_src:
-        ok("dashboard.html: localStorage 'wes_calib_done' key tracked -- no repeated auto-launch")
-    else:
-        fail("dashboard.html: wes_calib_done localStorage key missing -- calibration will auto-launch every load")
-
-    if 'wesCheckIdentity' in _dash16_src:
-        ok("dashboard.html: wesCheckIdentity() present -- username-based identity detection")
-    else:
-        fail("dashboard.html: wesCheckIdentity() missing -- Wes identity prompt won't trigger")
-
-    if 'wesConfirmYes' in _dash16_src and 'wesConfirmNo' in _dash16_src:
-        ok("dashboard.html: wesConfirmYes() + wesConfirmNo() handlers present")
-    else:
-        fail("dashboard.html: identity confirm handlers missing")
-
-    if 'wes-identity-modal' in _dash16_src:
-        ok("dashboard.html: #wes-identity-modal present -- identity prompt rendered")
-    else:
-        fail("dashboard.html: wes-identity-modal missing -- identity check has no UI")
-
-    if '_wesDeliverKrisMsg' in _dash16_src:
-        ok("dashboard.html: _wesDeliverKrisMsg() present -- Kris's message delivered on confirm")
-    else:
-        fail("dashboard.html: _wesDeliverKrisMsg() missing -- Kris's message won't play")
-
-    if 'kris-msg-bubble' in _dash16_src:
-        ok("dashboard.html: #kris-msg-bubble present -- message from Kris rendered")
-    else:
-        fail("dashboard.html: kris-msg-bubble missing -- message from Kris has no UI")
-
-# ── server.py identity endpoint check ─────────────────────────────────────────
-if _srv16_src:
-    if "'/api/eve/identity'" in _srv16_src:
-        ok("server.py: /api/eve/identity endpoint registered -- username-based Wes detection")
-    else:
-        fail("server.py: /api/eve/identity missing -- identity check can't detect Wes from username")
-
-    if 'is_wes' in _srv16_src:
-        ok("server.py: is_wes flag computed in /api/eve/identity")
-    else:
-        fail("server.py: is_wes flag missing from /api/eve/identity response")
-
 # ── Eve Voice Toggle checks ────────────────────────────────────────────────────
 if _srv16_src:
     if "'/api/eve/voice'" in _srv16_src:
@@ -1399,11 +1310,6 @@ if _dash16_src:
         ok("dashboard.html: _eveVoiceOn state variable present")
     else:
         fail("dashboard.html: _eveVoiceOn missing -- voice state untracked")
-
-    if "wes_identity" in _dash16_src and 'eveVoiceToggle' in _dash16_src:
-        ok("dashboard.html: Wes Mode override present in eveVoiceToggle()")
-    else:
-        fail("dashboard.html: Wes Mode override missing from eveVoiceToggle()")
 
 
 # ── Crash Recovery checks ─────────────────────────────────────────────────────
@@ -1483,8 +1389,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.29'" in _dash16_src or "WN_VER = '1.5.29'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.29 -- users see latest What's New")
+    if "WN_VER     = '1.5.30'" in _dash16_src or "WN_VER = '1.5.30'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.30 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 
