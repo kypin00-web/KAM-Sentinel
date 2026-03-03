@@ -46,6 +46,16 @@ def _guard():
     if _rate_limited(ip):  return jsonify(error='rate limited'), 429
     if request.method == 'POST': return jsonify(error='forbidden'), 403
 
+@app.after_request
+def _no_cache(response):
+    """Prevent browsers from caching API responses and dashboard.html.
+    Without this, Chrome serves a stale dashboard after an update installs a new exe."""
+    if request.path.startswith('/api/') or request.path == '/':
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma']        = 'no-cache'
+        response.headers['Expires']       = '0'
+    return response
+
 # ── Feedback rate limiting & dedup ────────────────────────────────────────────
 _fb_rl, _fb_dedup, _fb_lock = {}, {}, threading.Lock()
 FB_RL_WIN, FB_RL_MAX = 60.0, 5   # 5 submissions per 60 s per IP
@@ -142,7 +152,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.27'
+VER               = '1.5.29'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1507,6 +1517,9 @@ def api_preferences():
         prefs['temp_unit'] = d['temp_unit']
     if 'dark_mode' in d and isinstance(d['dark_mode'], bool):
         prefs['dark_mode'] = d['dark_mode']
+    if 'last_seen_whats_new' in d and isinstance(d['last_seen_whats_new'], str):
+        if re.match(r'^\d+\.\d+\.\d+$', d['last_seen_whats_new']) and len(d['last_seen_whats_new']) <= 20:
+            prefs['last_seen_whats_new'] = d['last_seen_whats_new']
     try:
         os.makedirs(PROF_DIR, exist_ok=True)
         with open(PREF_FILE, 'w', encoding='utf-8') as f:

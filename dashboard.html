@@ -816,6 +816,7 @@ footer {
     <button class="settings-btn" id="wes-mode-btn" onclick="wesToggle()" title="Wes Mode — hearing frequency calibration">🎵 WES MODE</button>
     <button class="settings-btn" onclick="openFeedback()">💬 FEEDBACK</button>
     <button class="settings-btn" onclick="openSettings()">⚙ THRESHOLDS</button>
+    <button class="settings-btn" id="wn-header-btn" onclick="openWhatsNew()" title="What's New in this version">✨ WHAT'S NEW</button>
   </div>
 </header>
 
@@ -1025,7 +1026,7 @@ footer {
   </div>
 </div>
 
-<footer>KAM Sentinel v1.5.2 — Phase 1 &nbsp;|&nbsp; Running locally on port 5000 &nbsp;|&nbsp; Original profile backed up on first launch</footer>
+<footer id="footer-ver">KAM Sentinel &nbsp;|&nbsp; Running locally &nbsp;|&nbsp; Original profile backed up on first launch</footer>
 
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal">
@@ -1630,6 +1631,8 @@ function checkNAIndicators(cpu, gpu) {
 
 // ── Goal 10: Update notification check ────────────────────────────────────
 // ── Auto-update ───────────────────────────────────────────────────────────
+let _currentVersion  = '';   // filled from /api/version in init()
+let _prefLastSeenWN  = null; // last_seen_whats_new from preferences.json
 let _updNewVersion = null;
 let _updDownloadUrl = null;
 let _updPlatform = null;
@@ -1692,6 +1695,9 @@ async function updateAction() {
     btn.disabled = true;
     try {
       await fetch('/api/update/install', { method: 'POST' });
+      // Installer launched — force a hard reload so Chrome serves fresh files
+      // after the new exe starts (clears any cached dashboard.html)
+      setTimeout(() => { try { location.reload(true); } catch(_) {} }, 2500);
     } catch(_) {}
     return;
   }
@@ -1833,6 +1839,7 @@ async function loadPreferences() {
       const btn = document.getElementById('dark-mode-btn');
       if (btn) { btn.style.borderColor = 'var(--purple)'; btn.style.color = 'var(--purple)'; }
     }
+    if (p.last_seen_whats_new) _prefLastSeenWN = p.last_seen_whats_new;
     _applyTempUnit(false); // init() calls fetchStats after this
   } catch(_) {}
 }
@@ -1938,15 +1945,25 @@ async function init() {
   if(sel) sel.value = savedMs;
   _refreshInterval = setInterval(fetchStats, savedMs);
   setInterval(fetchFps, 2000);
-  // Show Forge tab on Windows only
+  // Load version → update footer, show Forge tab (Windows), trigger smart What's New
   try {
     const vr = await fetch('/api/version');
     if(vr.ok) {
       const vd = await vr.json();
+      _currentVersion = vd.version || '';
+      // Dynamic footer — version always matches running server, no hardcode
+      const fv = document.getElementById('footer-ver');
+      if (fv && _currentVersion) {
+        const port = location.port || '5000';
+        fv.textContent = `KAM Sentinel v${_currentVersion}  |  Running locally on port ${port}  |  Original profile backed up on first launch`;
+      }
       if(vd.platform === 'win32') {
         const ft = document.getElementById('tab-forge');
         if(ft) ft.style.display = '';
       }
+      // Show What's New only for updates the user hasn't seen yet
+      const lastSeen = _prefLastSeenWN || localStorage.getItem('kam_whats_new_seen') || '0.0.0';
+      if (window.wnMaybeShow) await window.wnMaybeShow(_currentVersion, lastSeen);
     }
   } catch(_) {}
   // Load diagnostics for N/A indicators
@@ -2184,65 +2201,103 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.27';
-  let wnStep = 0;
-  let wnSteps, wnDots, wnNext, wnProgress;
+  const WN_VER     = '1.5.29';
+  let wnStep = 0, _wnSteps, wnDots, wnNext, wnProgress;
 
-  function wnBuild() {
+  // Compare semver strings: returns true if a > b
+  function _verGt(a, b) {
+    const pa = String(a || '0').split('.').map(Number);
+    const pb = String(b || '0').split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const na = pa[i] || 0, nb = pb[i] || 0;
+      if (na !== nb) return na > nb;
+    }
+    return false;
+  }
+
+  function wnBuild(visibleSteps) {
     try {
-      wnSteps    = Array.from(document.querySelectorAll('#wn-steps li'));
+      _wnSteps   = visibleSteps || Array.from(document.querySelectorAll('#wn-steps li'));
       wnDots     = document.getElementById('wn-dots');
       wnNext     = document.getElementById('wn-next');
       wnProgress = document.getElementById('wn-progress');
-      if (!wnDots || !wnNext || !wnProgress || !wnSteps.length) return;
-      // Build dots
-      wnSteps.forEach((_, i) => {
+      if (!wnDots || !wnNext || !wnProgress || !_wnSteps.length) return;
+      wnDots.innerHTML = '';
+      wnStep = 0;
+      document.querySelectorAll('#wn-steps li').forEach(li => li.classList.remove('active'));
+      _wnSteps.forEach((_, i) => {
         const d = document.createElement('span');
         d.className = 'wn-dot' + (i === 0 ? ' active' : '');
         d.onclick = () => wnGoTo(i);
         wnDots.appendChild(d);
       });
       wnUpdate();
-    } catch(e) { /* silently ignore — never crash the dashboard */ }
+    } catch(e) { /* never crash the dashboard */ }
   }
 
   function wnUpdate() {
     try {
-      if (!wnSteps || !wnDots || !wnNext || !wnProgress) return;
-      const total = wnSteps.length;
-      wnSteps.forEach((el, i) => el.classList.toggle('active', i === wnStep));
+      if (!_wnSteps || !wnDots || !wnNext || !wnProgress) return;
+      document.querySelectorAll('#wn-steps li').forEach(li => li.classList.remove('active'));
+      if (_wnSteps[wnStep]) _wnSteps[wnStep].classList.add('active');
       Array.from(wnDots.children).forEach((d, i) => d.classList.toggle('active', i === wnStep));
-      wnProgress.textContent = (wnStep + 1) + ' / ' + total;
-      wnNext.textContent = wnStep < total - 1 ? 'NEXT' : 'GOT IT';
-    } catch(e) { /* silently ignore */ }
+      wnProgress.textContent = (wnStep + 1) + ' / ' + _wnSteps.length;
+      wnNext.textContent = wnStep < _wnSteps.length - 1 ? 'NEXT' : 'GOT IT';
+    } catch(e) {}
   }
 
   function wnGoTo(i) { wnStep = i; wnUpdate(); }
 
   window.wnNext = function() {
-    if(wnStep < wnSteps.length - 1) { wnStep++; wnUpdate(); }
-    else wnDismiss();
+    if (_wnSteps && wnStep < _wnSteps.length - 1) { wnStep++; wnUpdate(); }
+    else window.wnDismiss();
   };
 
   window.wnDismiss = function() {
     const overlay = document.getElementById('wn-overlay');
     if (overlay) overlay.classList.remove('open');
+    // Persist in localStorage (instant) AND server preferences.json (survives reinstall)
     localStorage.setItem(WN_VER_KEY, WN_VER);
+    fetch('/api/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ last_seen_whats_new: WN_VER })
+    }).catch(() => {});
   };
 
-  // Show if this version hasn't been seen yet
-  document.addEventListener('DOMContentLoaded', () => {
+  // Called from init() after /api/version + /api/preferences are loaded.
+  // Only shows steps with data-since > lastSeen — unseen updates only.
+  window.wnMaybeShow = async function(currentVer, lastSeen) {
     try {
-      if(localStorage.getItem(WN_VER_KEY) !== WN_VER) {
-        wnBuild();
-        // Delay slightly so the dashboard renders first
-        setTimeout(() => {
-          const overlay = document.getElementById('wn-overlay');
-          if (overlay) overlay.classList.add('open');
-        }, 1200);
-      }
+      const allSteps = Array.from(document.querySelectorAll('#wn-steps li'));
+      const newSteps = allSteps.filter(li =>
+        _verGt(li.getAttribute('data-since') || '0.0.0', String(lastSeen || '0.0.0'))
+      );
+      if (!newSteps.length) return; // Nothing new — skip auto-show
+      allSteps.forEach(li => li.style.display = 'none');
+      newSteps.forEach(li => { li.style.display = ''; });
+      const titleEl = document.getElementById('wn-title');
+      if (titleEl) titleEl.textContent = 'KAM Sentinel v' + (currentVer || WN_VER);
+      wnBuild(newSteps);
+      setTimeout(() => {
+        const overlay = document.getElementById('wn-overlay');
+        if (overlay) overlay.classList.add('open');
+      }, 1200);
     } catch(e) { /* never crash the dashboard over What's New */ }
-  });
+  };
+
+  // Manual open from header button — always shows ALL steps
+  window.openWhatsNew = function() {
+    try {
+      const allSteps = Array.from(document.querySelectorAll('#wn-steps li'));
+      allSteps.forEach(li => li.style.display = '');
+      const titleEl = document.getElementById('wn-title');
+      if (titleEl) titleEl.textContent = 'KAM Sentinel v' + WN_VER;
+      wnBuild(allSteps);
+      const overlay = document.getElementById('wn-overlay');
+      if (overlay) overlay.classList.add('open');
+    } catch(e) {}
+  };
 })();
 
 // ── Wes Mode — Hearing Frequency Calibration ──────────────────────────────
@@ -2638,38 +2693,68 @@ async function eveFix() {
 <div id="wn-overlay" role="dialog" aria-modal="true" aria-label="What's New in KAM Sentinel">
   <div id="wn-box">
     <div id="wn-badge">WHAT'S NEW</div>
-    <div id="wn-title">KAM Sentinel v1.5.16</div>
-    <div id="wn-sub">Crash Recovery &mdash; Eve&rsquo;s got your back.</div>
+    <div id="wn-title">KAM Sentinel</div><!-- filled dynamically by wnMaybeShow / openWhatsNew -->
+    <div id="wn-sub">Here&rsquo;s what changed since your last session.</div>
     <ul id="wn-steps">
-      <li class="active">
-        <span class="wn-icon">&#x1F6A8;</span>
-        <span class="wn-step-title">Crash Recovery</span><br>
-        If KAM Sentinel crashes on startup, Eve logs the details and shows a friendly diagnosis the next time you launch &mdash; no raw error messages, no confusion. She&rsquo;s already on it.
-      </li>
-      <li>
-        <span class="wn-icon">&#x1F50A;</span>
-        <span class="wn-step-title">Eve Voice Toggle</span><br>
-        The &#x1F50A;/&#x1F507; button in the header lets you mute and unmute Eve&rsquo;s voice at any time. Eve says goodbye before going silent and hello when she&rsquo;s back. Wes Mode keeps her on always.
-      </li>
-      <li>
-        <span class="wn-icon">&#x1F464;</span>
-        <span class="wn-step-title">Wes Mode Identity Check</span><br>
-        On first launch, Eve checks whether you&rsquo;re Wes Johnson. If yes, she skips the intro and delivers a personal message from Kris before starting your hearing calibration. A little different from your average dashboard.
-      </li>
-      <li>
-        <span class="wn-icon">&#x1F4C1;</span>
-        <span class="wn-step-title">Installer Fix &mdash; No More Permission Crashes</span><br>
-        When installed to Program Files, Windows blocks file writes &mdash; causing a silent crash on launch. User data (logs, profiles, backups) now lives in AppData where it belongs. Fresh installs are clean.
-      </li>
-      <li>
+      <!-- ── v1.5.0 ── -->
+      <li data-since="1.5.0">
         <span class="wn-icon">&#x1F3AE;</span>
         <span class="wn-step-title">Live FPS Counter</span><br>
         Real-time FPS via RTSS shared memory &mdash; plus 1% low and frametime (ms). Color-coded: green &ge;60, yellow &ge;30, red &lt;30. No software to configure; works with any game RTSS supports.
       </li>
-      <li>
+      <!-- ── v1.5.1 ── -->
+      <li data-since="1.5.1">
         <span class="wn-icon">&#x1F527;</span>
         <span class="wn-step-title">Forge Tab &mdash; Benchmarks &amp; Fan Control</span><br>
         Run CPU single-thread, multi-thread, RAM bandwidth, and disk benchmarks from the Forge tab. Fan presets (SILENT / BALANCED / PERFORMANCE / FULL_SEND) are persisted and applied via LibreHardwareMonitor.
+      </li>
+      <!-- ── v1.5.16 ── -->
+      <li data-since="1.5.16">
+        <span class="wn-icon">&#x1F4C1;</span>
+        <span class="wn-step-title">Installer Fix &mdash; No More Permission Crashes</span><br>
+        When installed to Program Files, Windows blocks file writes &mdash; causing a silent crash on launch. User data (logs, profiles, backups) now lives in AppData where it belongs. Fresh installs are clean.
+      </li>
+      <li data-since="1.5.16">
+        <span class="wn-icon">&#x1F50A;</span>
+        <span class="wn-step-title">Eve Voice Toggle</span><br>
+        The &#x1F50A;/&#x1F507; button in the header lets you mute and unmute Eve&rsquo;s voice at any time. Eve says goodbye before going silent and hello when she&rsquo;s back. Wes Mode keeps her on always.
+      </li>
+      <li data-since="1.5.16">
+        <span class="wn-icon">&#x1F464;</span>
+        <span class="wn-step-title">Wes Mode Identity Check</span><br>
+        On first launch, Eve checks whether you&rsquo;re Wes Johnson. If yes, she skips the intro and delivers a personal message from Kris before starting your hearing calibration.
+      </li>
+      <li data-since="1.5.16">
+        <span class="wn-icon">&#x1F6A8;</span>
+        <span class="wn-step-title">Crash Recovery</span><br>
+        If KAM Sentinel crashes on startup, Eve logs the details and shows a friendly diagnosis the next time you launch &mdash; no raw error messages, no confusion. She&rsquo;s already on it.
+      </li>
+      <!-- ── v1.5.27 ── -->
+      <li data-since="1.5.27">
+        <span class="wn-icon">&#x1F9F5;</span>
+        <span class="wn-step-title">Complete Crash Logging</span><br>
+        All unhandled exceptions &mdash; including crashes in background threads (GPU worker, hardware scheduler) &mdash; are now captured and written to <code>crashes.jsonl</code>. Previously, thread crashes vanished silently.
+      </li>
+      <li data-since="1.5.27">
+        <span class="wn-icon">&#x1F6E1;</span>
+        <span class="wn-step-title">Antivirus Startup Check</span><br>
+        On launch, Eve verifies that all required files are accessible before Flask starts. If an antivirus (Avast CyberCapture, Defender) is locking a file, she tells you exactly what&rsquo;s blocked and how to fix it.
+      </li>
+      <!-- ── v1.5.29 ── -->
+      <li data-since="1.5.29">
+        <span class="wn-icon">&#x1F4CD;</span>
+        <span class="wn-step-title">Dynamic Footer &amp; Version Always Current</span><br>
+        The footer now shows the actual running version pulled from the server &mdash; no more stale hardcoded strings. Port number is also live. &ldquo;Phase 1&rdquo; quietly retired.
+      </li>
+      <li data-since="1.5.29">
+        <span class="wn-icon">&#x1F504;</span>
+        <span class="wn-step-title">Cache-Busting &amp; Post-Update Reload</span><br>
+        Flask now sends <code>no-store</code> headers so Chrome never serves a stale dashboard. After an update installs, the page reloads automatically &mdash; no more &ldquo;it updated but still shows old version&rdquo;.
+      </li>
+      <li data-since="1.5.29">
+        <span class="wn-icon">&#x2728;</span>
+        <span class="wn-step-title">Smart What&rsquo;s New</span><br>
+        This dialog now only shows updates you haven&rsquo;t seen yet. Last-seen version is tracked in <code>preferences.json</code> so it survives reinstalls. Hit <strong>&#x2728; WHAT&rsquo;S NEW</strong> in the header any time to review everything.
       </li>
     </ul>
     <div id="wn-dots"></div>

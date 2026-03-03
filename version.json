@@ -1,9 +1,9 @@
 {
-  "version": "1.5.27",
-  "build": 35,
+  "version": "1.5.29",
+  "build": 36,
   "date": "2026-03-03",
   "channel": "stable",
-  "changelog": "v1.5.27: Crash logging wired to all threads + antivirus file-access check on startup",
+  "changelog": "v1.5.29: Dynamic footer, cache-busting, post-update reload, smart What's New",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,9 +13,13 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: sys.excepthook + threading.excepthook route ALL unhandled exceptions to crashes.jsonl",
-    "FIX: Startup file-access check catches antivirus quarantine before Flask starts",
-    "FIX: _diagnose_crash recognises Windows access-denied / CyberCapture error pattern",
-    "FIX: launch.py version string updated (was stale at 1.5.18)"
+    "FIX: Footer version pulled from /api/version -- no more hardcoded stale strings",
+    "FIX: \"Phase 1\" removed from footer",
+    "FIX: Flask sends no-store Cache-Control -- Chrome no longer caches stale dashboard",
+    "FIX: location.reload(true) after installer launches -- new version shows immediately",
+    "NEW: What's New tracks last-seen version in preferences.json (survives reinstalls)",
+    "NEW: What's New only shows updates newer than last seen -- no repeat popups",
+    "NEW: What's New header button lets user open it manually any time",
+    "NEW: data-since attributes on all steps enable per-update filtering"
   ]
 }
