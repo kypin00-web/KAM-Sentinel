@@ -113,6 +113,17 @@ if sys.platform == 'win32' and getattr(sys, 'frozen', False):
 try: import GPUtil; _GPU = True
 except ImportError: _GPU = False
 
+def _get_gpus(timeout=5):
+    """GPUtil.getGPUs() with a hard timeout.
+    On Linux CI runners that have nvidia-smi installed but no real GPU,
+    the subprocess blocks indefinitely during driver initialisation.
+    5-second cap keeps startup and /api/diagnostics fast on any platform."""
+    if not _GPU: return []
+    try:
+        with ThreadPoolExecutor(max_workers=1) as _ex:
+            return _ex.submit(GPUtil.getGPUs).result(timeout=timeout)
+    except Exception: return []
+
 _WMI = _wmi = None
 if sys.platform == 'win32':
     try: import wmi; _wmi = wmi.WMI(); _WMI = True
@@ -386,7 +397,7 @@ def _read_gpu():
     base = dict(usage=None, temp=None, name='N/A', vram_used=None, vram_total=None)
     if _GPU:
         try:
-            gpus = GPUtil.getGPUs()
+            gpus = _get_gpus()
             if gpus:
                 g = gpus[0]
                 base.update(usage=round(g.load*100,1), temp=round(g.temperature,1),
@@ -651,7 +662,7 @@ def _get_sysinfo():
     i['gpu_name'] = 'N/A'; i['gpu_vram_mb'] = 'N/A'
     if _GPU:
         try:
-            g = GPUtil.getGPUs()
+            g = _get_gpus()
             if g: i['gpu_name'] = g[0].name; i['gpu_vram_mb'] = round(g[0].memoryTotal)
         except: pass
     i.update(manufacturer='N/A', model='N/A', bios_version='N/A', motherboard='N/A', directx='N/A')
@@ -1023,7 +1034,7 @@ def api_diagnostics():
                                 fix='pip install wmi pywin32', auto_fix=True),
                        privacy=dict(status='ok',message='No PII stored',fix=None))
     diags = {}
-    try: gpus=GPUtil.getGPUs(); diags['gpu']=dict(status='ok' if gpus else 'no_gpu_found',
+    try: gpus=_get_gpus(); diags['gpu']=dict(status='ok' if gpus else 'no_gpu_found',
                                                    message=f'Found {len(gpus)} GPU(s)' if gpus else 'No GPU detected',fix=None)
     except ImportError: diags['gpu']=dict(status='missing_package',message='GPUtil not installed',
                                            fix='pip install GPUtil', auto_fix=True)

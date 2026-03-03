@@ -234,6 +234,11 @@ try:
     else:
         fail("get_gpu_stats() used directly in poll -- blocks on nvidia-smi")
 
+    if '_get_gpus' in src and 'timeout=' in src:
+        ok("_get_gpus() wrapper present -- GPUtil.getGPUs() has hard timeout (no CI hang)")
+    else:
+        fail("GPUtil.getGPUs() called without timeout -- hangs on Linux CI with nvidia-smi but no GPU")
+
     if '_fps_worker' in src:
         ok("FPS worker thread present -- RTSS polling never blocks main thread")
     else:
@@ -1468,8 +1473,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.21'" in _dash16_src or "WN_VER = '1.5.21'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.21 -- users see latest What's New")
+    if "WN_VER     = '1.5.24'" in _dash16_src or "WN_VER = '1.5.24'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.24 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 
