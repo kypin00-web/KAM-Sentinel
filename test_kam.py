@@ -1111,31 +1111,34 @@ def _url_ok(url, validate=None, timeout=12):
 
 _has_internet = None   # determined lazily from first URL result
 
-for _label, _url, _validate in _LIVE_URLS:
-    _ok, _code, _jok = _url_ok(_url, validate=_validate)
-    if _ok is None:
-        # network failure / no internet
-        if _has_internet is None:
-            warn(f"No internet — skipping live URL checks (CI offline or firewall blocked)")
-            _has_internet = False
-        # skip remaining checks silently — already warned
-        break
-    _has_internet = True
-    _extra = ''
-    if _jok is True:
-        _extra = ' (JSON valid)'
-    elif _jok is False:
-        _extra = ' (JSON INVALID)'
-    if _ok and _jok is not False:
-        ok(f"{_label} -> HTTP {_code}{_extra}")
-    elif _ok and _jok is False:
-        fail(f"{_label} -> HTTP {_code} but JSON is invalid")
-    else:
-        fail(f"{_label} -> HTTP {_code or 'ERR'} (expected 200)")
+if CI:
+    warn("Live URL checks skipped in CI — Pages deploy races the test run")
+else:
+    for _label, _url, _validate in _LIVE_URLS:
+        _ok, _code, _jok = _url_ok(_url, validate=_validate)
+        if _ok is None:
+            # network failure / no internet
+            if _has_internet is None:
+                warn(f"No internet — skipping live URL checks (CI offline or firewall blocked)")
+                _has_internet = False
+            # skip remaining checks silently — already warned
+            break
+        _has_internet = True
+        _extra = ''
+        if _jok is True:
+            _extra = ' (JSON valid)'
+        elif _jok is False:
+            _extra = ' (JSON INVALID)'
+        if _ok and _jok is not False:
+            ok(f"{_label} -> HTTP {_code}{_extra}")
+        elif _ok and _jok is False:
+            fail(f"{_label} -> HTTP {_code} but JSON is invalid")
+        else:
+            fail(f"{_label} -> HTTP {_code or 'ERR'} (expected 200)")
 
-if _has_internet is None:
-    # LIVE_URLS list was empty (shouldn't happen)
-    warn("No URLs configured for live URL check section")
+    if _has_internet is None:
+        # LIVE_URLS list was empty (shouldn't happen)
+        warn("No URLs configured for live URL check section")
 
 
 # =============================================================================
