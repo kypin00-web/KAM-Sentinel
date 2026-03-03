@@ -114,11 +114,12 @@ try: import GPUtil; _GPU = True
 except ImportError: _GPU = False
 
 def _get_gpus(timeout=5):
-    """GPUtil.getGPUs() with a hard timeout.
-    On Linux CI runners that have nvidia-smi installed but no real GPU,
-    the subprocess blocks indefinitely during driver initialisation.
-    5-second cap keeps startup and /api/diagnostics fast on any platform."""
+    """Call GPUtil.getGPUs() safely.
+    CI guard: nvidia-smi on ubuntu-latest hangs indefinitely with no real GPU —
+    ThreadPoolExecutor timeout doesn't reliably kill the blocked subprocess.
+    Real installs always have hardware present so the guard never fires there."""
     if not _GPU: return []
+    if os.environ.get('CI'): return []   # nuclear: no GPU subprocess in CI
     try:
         with ThreadPoolExecutor(max_workers=1) as _ex:
             return _ex.submit(GPUtil.getGPUs).result(timeout=timeout)
@@ -141,7 +142,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.21'
+VER               = '1.5.25'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 

@@ -1,9 +1,9 @@
 {
-  "version": "1.5.24",
-  "build": 32,
+  "version": "1.5.25",
+  "build": 33,
   "date": "2026-03-03",
   "channel": "stable",
-  "changelog": "v1.5.24: Fix 5-minute CI hang -- GPUtil.getGPUs() now has 5s timeout.",
+  "changelog": "v1.5.25: Nuclear CI fix -- skip GPUtil entirely when CI=true.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,9 +13,8 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: GPUtil.getGPUs() now wrapped in _get_gpus(timeout=5) -- prevents 5-min CI hang on Linux runners with nvidia-smi but no real GPU",
-    "FIX: Affects startup (_get_sysinfo), background poll (_read_gpu), and /api/diagnostics endpoint",
-    "FIX: Live URL checks already skipped in CI (v1.5.23)",
-    "FIX: Installer targets %LOCALAPPDATA% -- no admin rights needed (v1.5.21)"
+    "FIX: _get_gpus() returns [] immediately when CI=true -- no nvidia-smi subprocess, no hang",
+    "FIX: ThreadPoolExecutor timeout alone insufficient -- blocked subprocess outlives the future",
+    "FIX: VER string corrected (was stuck at 1.5.21 since v1.5.22 due to sed target mismatch)"
   ]
 }
