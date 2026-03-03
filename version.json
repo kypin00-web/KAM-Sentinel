@@ -1,9 +1,9 @@
 {
-  "version": "1.5.25",
-  "build": 33,
+  "version": "1.5.26",
+  "build": 34,
   "date": "2026-03-03",
   "channel": "stable",
-  "changelog": "v1.5.25: Nuclear CI fix -- skip GPUtil entirely when CI=true.",
+  "changelog": "v1.5.26: Installer unblocks MOTW -- app launches cleanly after install.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,8 +13,8 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "FIX: _get_gpus() returns [] immediately when CI=true -- no nvidia-smi subprocess, no hang",
-    "FIX: ThreadPoolExecutor timeout alone insufficient -- blocked subprocess outlives the future",
-    "FIX: VER string corrected (was stuck at 1.5.21 since v1.5.22 due to sed target mismatch)"
+    "FIX: Installer runs Unblock-File on all extracted files via nsExec PowerShell step",
+    "FIX: Clears Zone.Identifier ADS so Windows allows the app to launch without prompts",
+    "FIX: Uses LiteralPath $INSTDIR so paths with spaces are handled correctly"
   ]
 }

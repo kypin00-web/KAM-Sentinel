@@ -1011,6 +1011,16 @@ if os.path.exists(_nsi_path):
                 ok(f"installer.nsi contains '{_kw}'")
             else:
                 fail(f"installer.nsi missing '{_kw}' -- NSIS build will fail")
+
+        if 'Unblock-File' in _nsi_src and 'nsExec' in _nsi_src:
+            ok("installer.nsi: Unblock-File step present -- MOTW cleared on install, app launches cleanly")
+        else:
+            fail("installer.nsi: Unblock-File step missing -- installed exe blocked by Mark of the Web")
+
+        if '$INSTDIR' in _nsi_src and 'LiteralPath' in _nsi_src:
+            ok("installer.nsi: Unblock uses LiteralPath $INSTDIR -- space-safe, respects custom install path")
+        else:
+            fail("installer.nsi: Unblock not using LiteralPath $INSTDIR -- may fail on paths with spaces")
     except Exception as _e:
         fail(f"installer.nsi read error: {_e}")
 else:
@@ -1473,8 +1483,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.25'" in _dash16_src or "WN_VER = '1.5.25'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.25 -- users see latest What's New")
+    if "WN_VER     = '1.5.26'" in _dash16_src or "WN_VER = '1.5.26'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.26 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 

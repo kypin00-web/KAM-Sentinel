@@ -78,6 +78,12 @@ Section "KAM Sentinel" SecMain
   ; Copy the main executable
   File "dist\KAM_Sentinel_Windows.exe"
 
+  ; ── Unblock Mark of the Web ────────────────────────────────
+  ; Files downloaded from the internet carry a Zone.Identifier ADS that
+  ; causes Windows to block execution. Unblock immediately after extraction
+  ; so the app launches without "cannot access the specified device" errors.
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -Command "Get-ChildItem -LiteralPath \"$INSTDIR\" -Recurse | Unblock-File"'
+
   ; ── Shortcuts ──────────────────────────────────────────────
   CreateDirectory "$SMPROGRAMS\KAM Sentinel"
   CreateShortcut \
