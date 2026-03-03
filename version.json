@@ -1,9 +1,9 @@
 {
-  "version": "1.5.20",
-  "build": 30,
+  "version": "1.5.21",
+  "build": 31,
   "date": "2026-03-02",
   "channel": "stable",
-  "changelog": "v1.5.20: In-app auto-update banner — one-click install, progress bar, 4-hour background check.",
+  "changelog": "v1.5.21: Installer now installs to %LOCALAPPDATA% — no admin rights or UAC prompt required.",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,11 +13,9 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "NEW: Auto-update banner — shows at top of dashboard when new version is available",
-    "NEW: In-app download — [Install Now] streams KAM_Sentinel_Setup.exe with live progress bar",
-    "NEW: One-click install — app closes, installer launches, fresh version on next open",
-    "NEW: Error recovery — [Try Again] or [Download Manually →] on failure",
-    "NEW: Background check — version re-checked every 4 hours while app is running",
-    "FIX: Update check URL → GitHub Pages (kypin00-web.github.io/KAM-Sentinel/version.json)"
+    "FIX: Installer now targets %LOCALAPPDATA%\KAM Sentinel instead of Program Files",
+    "FIX: No admin rights or UAC prompt required — fresh install works for all users including standard accounts",
+    "FIX: All registry writes moved to HKCU — Add/Remove Programs entry visible per-user without elevation",
+    "FIX: RequestExecutionLevel user — installer never triggers UAC"
   ]
 }

@@ -1465,8 +1465,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.20'" in _dash16_src or "WN_VER = '1.5.20'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.20 -- users see latest What's New")
+    if "WN_VER     = '1.5.21'" in _dash16_src or "WN_VER = '1.5.21'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.21 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 

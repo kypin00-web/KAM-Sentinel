@@ -23,9 +23,9 @@
 
   Name              "KAM Sentinel"
   OutFile           "dist\KAM_Sentinel_Setup.exe"
-  InstallDir        "$PROGRAMFILES64\KAM Sentinel"
-  InstallDirRegKey  HKLM "Software\KAM Sentinel" "InstallDir"
-  RequestExecutionLevel admin
+  InstallDir        "$LOCALAPPDATA\KAM Sentinel"
+  InstallDirRegKey  HKCU "Software\KAM Sentinel" "InstallDir"
+  RequestExecutionLevel user
   Unicode           True
 
   ; Installer/uninstaller icon
@@ -90,28 +90,28 @@ Section "KAM Sentinel" SecMain
     "$INSTDIR\KAM_Sentinel_Windows.exe" \
     "" "$INSTDIR\KAM_Sentinel_Windows.exe" 0
 
-  ; ── Add/Remove Programs registry ───────────────────────────
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  ; ── Add/Remove Programs registry (HKCU — no admin required) ───────────────
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "DisplayName"     "KAM Sentinel"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "UninstallString" '"$INSTDIR\Uninstall.exe"'
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "DisplayIcon"     "$INSTDIR\KAM_Sentinel_Windows.exe"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "Publisher"       "KAM Sentinel"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "DisplayVersion"  "${VER}"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "URLInfoAbout"    "https://kypin00-web.github.io/KAM-Sentinel"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegStr   HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "URLUpdateInfo"   "https://github.com/kypin00-web/KAM-Sentinel/releases"
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "NoModify" 1
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" \
                 "NoRepair" 1
 
   ; Store install location for future reference
-  WriteRegStr HKLM "Software\KAM Sentinel" "InstallDir" "$INSTDIR"
+  WriteRegStr HKCU "Software\KAM Sentinel" "InstallDir" "$INSTDIR"
 
   ; Write the uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -133,8 +133,8 @@ Section "Uninstall"
   Delete "$DESKTOP\KAM Sentinel.lnk"
 
   ; Remove registry
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel"
-  DeleteRegKey HKLM "Software\KAM Sentinel"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel"
+  DeleteRegKey HKCU "Software\KAM Sentinel"
 
   ; Remove install directory (only if empty after above deletes)
   RMDir "$INSTDIR"
