@@ -130,8 +130,8 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.19'
-UPDATE_CHECK_URL  = 'https://raw.githubusercontent.com/kypin00-web/KAM-Sentinel/main/version.json'
+VER               = '1.5.20'
+UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
 _FAN_CURVE_FILE = os.path.join(PROF_DIR, 'fan_curve.json')
@@ -189,6 +189,10 @@ _fps_cache   = dict(fps=None, fps_1pct_low=None, frametime_ms=None,
                     source='rtss' if sys.platform == 'win32' else 'not_supported',
                     available=False)
 _fps_lock    = threading.Lock()
+
+# ── Auto-update download state ─────────────────────────────────────────────
+_update_lock  = threading.Lock()
+_update_state = {'state': 'idle', 'progress': 0, 'path': None, 'error': None}
 
 _net_prev, _net_ts, _net_warmed_up = psutil.net_io_counters(), time.time(), False
 _net_base       = deque(maxlen=36)
@@ -1387,6 +1391,77 @@ def api_eve_jserror():
         _log_err('api_eve_jserror', e)
     return jsonify(ok=True)
 
+
+def _validate_update_url(url):
+    """Only allow downloads from the official KAM Sentinel releases page."""
+    return (isinstance(url, str)
+            and url.startswith('https://github.com/kypin00-web/KAM-Sentinel/releases/')
+            and url.endswith('.exe')
+            and len(url) < 500)
+
+def _download_update(url):
+    """Background thread: stream installer to %TEMP%\\KAM_Sentinel_Update\\."""
+    import urllib.request as _ur
+    try:
+        tmp = os.path.join(os.environ.get('TEMP', os.path.expanduser('~')), 'KAM_Sentinel_Update')
+        os.makedirs(tmp, exist_ok=True)
+        dest = os.path.join(tmp, 'KAM_Sentinel_Setup.exe')
+        req = _ur.urlopen(url, timeout=120)
+        total = int(req.headers.get('Content-Length') or 0)
+        downloaded = 0
+        with open(dest, 'wb') as f:
+            while True:
+                buf = req.read(65536)
+                if not buf: break
+                f.write(buf)
+                downloaded += len(buf)
+                if total > 0:
+                    with _update_lock:
+                        _update_state['progress'] = min(99, int(downloaded * 100 / total))
+        with _update_lock:
+            _update_state.update(state='ready', progress=100, path=dest, error=None)
+    except Exception as e:
+        with _update_lock:
+            _update_state.update(state='error', error=str(e)[:200])
+
+@app.route('/api/update/status')
+def api_update_status():
+    with _update_lock:
+        return jsonify(**_update_state)
+
+@app.route('/api/update/download', methods=['POST'])
+def api_update_download():
+    if sys.platform != 'win32':
+        return jsonify(error='In-app download only supported on Windows'), 400
+    d = request.get_json(silent=True) or {}
+    url = str(d.get('url', ''))
+    if not _validate_update_url(url):
+        return jsonify(error='Invalid download URL'), 400
+    with _update_lock:
+        if _update_state['state'] == 'downloading':
+            return jsonify(error='Download already in progress'), 409
+        _update_state.update(state='downloading', progress=0, path=None, error=None)
+    threading.Thread(target=_download_update, args=(url,), daemon=True).start()
+    return jsonify(status='started')
+
+@app.route('/api/update/install', methods=['POST'])
+def api_update_install():
+    if sys.platform != 'win32':
+        return jsonify(error='In-app install only supported on Windows'), 400
+    with _update_lock:
+        if _update_state['state'] != 'ready' or not _update_state.get('path'):
+            return jsonify(error='No installer ready'), 400
+        path = _update_state['path']
+    if not os.path.exists(path):
+        return jsonify(error='Installer file missing — re-download'), 404
+    try:
+        subprocess.Popen([path], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        _flush_log(); _flush_errs()
+        threading.Timer(1.2, lambda: os._exit(0)).start()
+        return jsonify(status='launching')
+    except Exception as e:
+        _log_err('api_update_install', e)
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/preferences', methods=['GET', 'POST'])
 def api_preferences():

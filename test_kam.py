@@ -466,6 +466,10 @@ try:
         ('Dark mode toggle present',      'dark-mode-btn' in html and 'toggleDarkMode' in html),
         ('Temp unit JS helpers',          'toDisplayTemp' in html and 'fromDisplayTemp' in html),
         ('Preferences endpoint in JS',    'api/preferences' in html),
+        ('Update banner HTML present',    'update-banner' in html and 'upd-msg' in html),
+        ('Update action button present',  'upd-action-btn' in html and 'updateAction' in html),
+        ('Update progress bar present',   'upd-progress-bar' in html),
+        ('Update 4-hour background poll', '4 * 60 * 60 * 1000' in html or '14400000' in html),
     ]
     for name, result in checks:
         if result:
@@ -609,6 +613,7 @@ try:
         ('/api/feedback/queue',   200),
         ('/api/version',          200),
         ('/api/preferences',      200),
+        ('/api/update/status',    200),
         ('/api/baseline',         (200, 404)),    # 404 OK on clean run
         ('/api/original_profile', (200, 404)),    # 404 OK on clean run
     ]
@@ -1165,6 +1170,21 @@ if _srv16_src:
     else:
         fail("/api/preferences endpoint missing -- temp unit and dark mode won't persist")
 
+    if "'/api/update/download'" in _srv16_src and "'/api/update/status'" in _srv16_src:
+        ok("/api/update/download + /api/update/status endpoints registered")
+    else:
+        fail("/api/update endpoints missing -- in-app update download won't work")
+
+    if "'/api/update/install'" in _srv16_src:
+        ok("/api/update/install endpoint registered -- one-click install wired")
+    else:
+        fail("/api/update/install endpoint missing")
+
+    if '_validate_update_url' in _srv16_src:
+        ok("_validate_update_url() present -- download URL whitelist enforced")
+    else:
+        fail("_validate_update_url() missing -- arbitrary URLs could be downloaded")
+
     if "'/api/eve/calibration'" in _srv16_src:
         ok("/api/eve/calibration endpoint registered")
     else:
@@ -1445,8 +1465,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.19'" in _dash16_src or "WN_VER = '1.5.19'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.19 -- users see latest What's New")
+    if "WN_VER     = '1.5.20'" in _dash16_src or "WN_VER = '1.5.20'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.20 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 

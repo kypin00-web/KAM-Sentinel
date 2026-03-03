@@ -1148,24 +1148,26 @@ footer {
   </div>
 </div>
 
-<!-- UPDATE NOTIFICATION -->
-<div id="update-toast" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9998;
-  background:var(--bg2); border:1px solid var(--green); border-radius:8px; padding:16px 20px;
-  max-width:360px; box-shadow:0 0 30px rgba(0,255,136,.15);">
-  <div style="color:var(--green); font-size:.75rem; letter-spacing:2px; margin-bottom:8px;">⬡ UPDATE AVAILABLE</div>
-  <div id="update-version" style="font-size:.85rem; color:var(--white); margin-bottom:6px;"></div>
-  <div id="update-changes" style="font-size:.72rem; color:var(--dim); margin-bottom:12px; line-height:1.6;"></div>
-  <div style="display:flex; gap:8px;">
-    <button onclick="document.getElementById('update-toast').style.display='none'"
-      style="background:none; border:1px solid var(--border2); color:var(--dim); padding:5px 12px;
-      border-radius:3px; cursor:pointer; font-family:'Share Tech Mono',monospace; font-size:.65rem;">
-      IGNORE
-    </button>
-    <a id="update-link" href="https://github.com/kypin00-web/KAM-Sentinel/releases" target="_blank"
-      style="background:var(--green); color:var(--bg); padding:5px 12px; border-radius:3px;
-      text-decoration:none; font-family:'Share Tech Mono',monospace; font-size:.65rem; font-weight:bold;">
-      VIEW UPDATE
-    </a>
+<!-- AUTO-UPDATE BANNER — sits above the tab bar, below the header -->
+<div id="update-banner" style="display:none;
+  background:linear-gradient(90deg,rgba(0,229,255,.06),rgba(0,229,255,.03));
+  border-bottom:1px solid rgba(0,229,255,.25); padding:10px 28px;">
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <span style="color:var(--cyan); font-family:'Share Tech Mono',monospace; font-size:.7rem; letter-spacing:1px;">⚡</span>
+    <span id="upd-msg" style="font-family:'Share Tech Mono',monospace; font-size:.72rem; color:var(--white); flex:1; min-width:200px;"></span>
+    <div id="upd-progress-wrap" style="display:none; flex:1; min-width:140px; max-width:220px;">
+      <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:3px; height:6px; overflow:hidden;">
+        <div id="upd-progress-bar" style="height:100%; background:var(--cyan); width:0%; transition:width .3s;"></div>
+      </div>
+    </div>
+    <button id="upd-action-btn" onclick="updateAction()"
+      style="background:var(--cyan); color:var(--bg); border:none; padding:5px 14px; border-radius:3px;
+      font-family:'Share Tech Mono',monospace; font-size:.68rem; font-weight:bold; cursor:pointer; white-space:nowrap;"></button>
+    <a id="upd-manual-link" style="display:none; font-family:'Share Tech Mono',monospace; font-size:.68rem;
+      color:var(--dim2); text-decoration:underline; cursor:pointer; white-space:nowrap;"
+      href="https://github.com/kypin00-web/KAM-Sentinel/releases" target="_blank">Download Manually →</a>
+    <button onclick="dismissUpdate()"
+      style="background:none; border:none; color:var(--dim); cursor:pointer; font-size:1rem; line-height:1; padding:2px 4px;">✕</button>
   </div>
 </div>
 
@@ -1627,33 +1629,128 @@ function checkNAIndicators(cpu, gpu) {
 }
 
 // ── Goal 10: Update notification check ────────────────────────────────────
+// ── Auto-update ───────────────────────────────────────────────────────────
+let _updNewVersion = null;
+let _updDownloadUrl = null;
+let _updPlatform = null;
+let _updPollTimer = null;
+let _updDismissed = false;
+
 async function checkForUpdate() {
+  if (_updDismissed) return;
   try {
-    const r = await fetch('/api/version');
-    const v = await r.json();
-    if(v.update_check_url) {
-      const remote = await fetch(v.update_check_url);
-      const rv = await remote.json();
-      if(rv.version && rv.version !== v.version) {
-        showUpdateBanner(rv.version, rv.changelog || '');
-      }
+    // Get current version + platform from local server
+    const vr = await fetch('/api/version');
+    if (!vr.ok) return;
+    const v = await vr.json();
+    _updPlatform = v.platform;
+    // Fetch remote version.json from GitHub Pages
+    const rr = await fetch('https://kypin00-web.github.io/KAM-Sentinel/version.json', { cache: 'no-store' });
+    if (!rr.ok) return;
+    const rv = await rr.json();
+    if (rv.version && rv.version !== v.version) {
+      _updNewVersion  = rv.version;
+      _updDownloadUrl = rv.download?.windows_raw || null;
+      showUpdateBanner(rv.version);
     }
-  } catch(e) { /* No update server configured yet */ }
+  } catch(_) { /* network unavailable — silent */ }
 }
 
-function showUpdateBanner(newVersion, changes) {
-  const toast = document.getElementById('update-toast');
-  const vEl   = document.getElementById('update-version');
-  const cEl   = document.getElementById('update-changes');
-  if(!toast) return;
-  vEl.textContent = `v${newVersion} is available`;
-  if(changes && changes.length) {
-    cEl.innerHTML = changes.slice(0,5).map(c => `• ${c}`).join('<br>');
-    cEl.style.display = 'block';
+function showUpdateBanner(newVersion) {
+  const banner = document.getElementById('update-banner');
+  const msg    = document.getElementById('upd-msg');
+  const btn    = document.getElementById('upd-action-btn');
+  const manual = document.getElementById('upd-manual-link');
+  if (!banner) return;
+  msg.textContent = `KAM Sentinel v${newVersion} is available!`;
+  if (_updPlatform === 'win32') {
+    btn.textContent = 'Install Now — takes 30 seconds';
+    btn.style.display = '';
+    manual.style.display = 'none';
   } else {
-    cEl.style.display = 'none';
+    // Non-Windows: direct link only
+    btn.style.display = 'none';
+    manual.style.display = '';
   }
-  toast.style.display = 'block';
+  document.getElementById('upd-progress-wrap').style.display = 'none';
+  banner.style.display = '';
+}
+
+function dismissUpdate() {
+  _updDismissed = true;
+  const banner = document.getElementById('update-banner');
+  if (banner) banner.style.display = 'none';
+  if (_updPollTimer) { clearInterval(_updPollTimer); _updPollTimer = null; }
+}
+
+async function updateAction() {
+  const btn = document.getElementById('upd-action-btn');
+  const st  = btn.dataset.state || 'idle';
+  if (st === 'ready') {
+    // Install: run the downloaded installer, app will restart
+    btn.textContent = 'Launching installer…';
+    btn.disabled = true;
+    try {
+      await fetch('/api/update/install', { method: 'POST' });
+    } catch(_) {}
+    return;
+  }
+  // Start download
+  if (!_updDownloadUrl) { window.open('https://github.com/kypin00-web/KAM-Sentinel/releases', '_blank'); return; }
+  btn.textContent = 'Starting download…';
+  btn.disabled = true;
+  document.getElementById('upd-progress-wrap').style.display = '';
+  try {
+    const r = await fetch('/api/update/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: _updDownloadUrl })
+    });
+    if (!r.ok) {
+      const e = await r.json();
+      _updShowError(e.error || 'Download failed');
+      return;
+    }
+    _updPollTimer = setInterval(_pollUpdateProgress, 600);
+  } catch(_) {
+    _updShowError('Connection error');
+  }
+}
+
+async function _pollUpdateProgress() {
+  try {
+    const r = await fetch('/api/update/status');
+    const d = await r.json();
+    const bar = document.getElementById('upd-progress-bar');
+    const msg = document.getElementById('upd-msg');
+    const btn = document.getElementById('upd-action-btn');
+    if (d.state === 'downloading') {
+      if (bar) bar.style.width = d.progress + '%';
+      msg.textContent = `Downloading… ${d.progress}%`;
+    } else if (d.state === 'ready') {
+      clearInterval(_updPollTimer); _updPollTimer = null;
+      if (bar) bar.style.width = '100%';
+      document.getElementById('upd-progress-wrap').style.display = 'none';
+      msg.textContent = 'Ready!';
+      btn.textContent = 'Click to Install — app will restart';
+      btn.disabled = false;
+      btn.dataset.state = 'ready';
+    } else if (d.state === 'error') {
+      clearInterval(_updPollTimer); _updPollTimer = null;
+      _updShowError(d.error || 'Download failed');
+    }
+  } catch(_) {}
+}
+
+function _updShowError(errMsg) {
+  const msg    = document.getElementById('upd-msg');
+  const btn    = document.getElementById('upd-action-btn');
+  const manual = document.getElementById('upd-manual-link');
+  document.getElementById('upd-progress-wrap').style.display = 'none';
+  msg.textContent = `Download failed — ${errMsg}`;
+  btn.textContent = 'Try Again';
+  btn.disabled = false;
+  btn.dataset.state = 'idle';
+  manual.style.display = '';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
@@ -1854,8 +1951,9 @@ async function init() {
   } catch(_) {}
   // Load diagnostics for N/A indicators
   await loadDiagnostics();
-  // Check for updates once on load (Goal 10)
+  // Check for updates on load, then every 4 hours
   setTimeout(checkForUpdate, 3000);
+  setInterval(checkForUpdate, 4 * 60 * 60 * 1000);
 }
 
 window.addEventListener('load', init);
@@ -2086,7 +2184,7 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.19';
+  const WN_VER     = '1.5.20';
   let wnStep = 0;
   let wnSteps, wnDots, wnNext, wnProgress;
 
