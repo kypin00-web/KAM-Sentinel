@@ -142,7 +142,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.26'
+VER               = '1.5.27'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1155,6 +1155,15 @@ def api_forge_benchmark_baseline():
 def _diagnose_crash(entry):
     """Translate a raw crash entry into a user-friendly explanation for Eve to deliver."""
     err = str(entry.get('error', ''))
+    _err_lo = err.lower()
+    if ('cannot access' in _err_lo or 'FileAccessError' in err
+            or 'WinError 5' in err or 'Access is denied' in err
+            or 'WinError 32' in err or 'being used by another process' in _err_lo
+            or 'cannot access the specified device' in _err_lo):
+        return ("An antivirus (Avast, Defender, etc.) blocked access to a required file "
+                "while KAM Sentinel was running. Add KAM Sentinel to your antivirus "
+                "exclusions and relaunch — or temporarily disable real-time protection "
+                "once so the scanner can whitelist the app.")
     if 'PermissionError' in err:
         return "Looks like a permissions hiccup last time. Try running as Administrator, or move the app out of Program Files."
     if 'ModuleNotFoundError' in err or 'ImportError' in err:

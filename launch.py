@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KAM Sentinel v1.5.18 - Portable EXE Launcher
+KAM Sentinel v1.5.27 - Portable EXE Launcher
 Entry point for the compiled .exe — bundles Flask server + dashboard into one file.
 """
 
@@ -44,7 +44,7 @@ def _write_crash(exc):
             'date':      datetime.datetime.now().isoformat(),
             'error':     type(exc).__name__ + ': ' + str(exc),
             'traceback': traceback.format_exc(),
-            'version':   '1.5.18',
+            'version':   '1.5.27',
             'os':        sys.platform,
             'username':  (os.environ.get('USERNAME') or os.environ.get('USER') or ''),
         }
@@ -54,6 +54,98 @@ def _write_crash(exc):
             json.dump(entry, f, indent=2)
     except Exception:
         pass  # If we can't write the crash log, there's nothing we can do
+
+
+# ── Global exception hooks — catch ALL unhandled exceptions ───────────────────
+def _excepthook(exc_type, exc_value, exc_tb):
+    """Catch unhandled exceptions on the main thread."""
+    if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+        return
+    _write_crash(exc_value)
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _excepthook
+
+def _thread_excepthook(args):
+    """Catch unhandled exceptions in background threads (Python 3.8+)."""
+    if args.exc_type in (KeyboardInterrupt, SystemExit):
+        return
+    if args.exc_value is not None:
+        _write_crash(args.exc_value)
+
+if hasattr(threading, 'excepthook'):  # Python 3.8+
+    threading.excepthook = _thread_excepthook
+
+
+# ── Startup file-access check ─────────────────────────────────────────────────
+def _check_required_files():
+    """Verify all bundled files are readable before Flask starts.
+
+    Antivirus tools (Avast CyberCapture, Defender) can lock files in the
+    PyInstaller temp dir mid-run.  This catches that early and shows a
+    friendly Eve message instead of a silent crash.
+    Only meaningful when running as a frozen exe.
+    """
+    if not getattr(sys, 'frozen', False):
+        return  # Dev mode — files always sit next to source
+
+    required = [
+        (os.path.join(BASE_DIR, 'dashboard.html'), 'dashboard.html'),
+        (os.path.join(BASE_DIR, 'thresholds.py'),  'thresholds.py'),
+    ]
+    blocked = []
+
+    for path, label in required:
+        try:
+            with open(path, 'rb') as f:
+                f.read(16)   # minimal read to confirm OS grants access
+        except Exception as e:
+            blocked.append((label, path, str(e)))
+
+    # Also verify the log/data dir is writable (catches quarantine on DATA_DIR)
+    test_path = os.path.join(_CRASH_DIR, '_access_test.tmp')
+    try:
+        os.makedirs(_CRASH_DIR, exist_ok=True)
+        with open(test_path, 'w', encoding='utf-8') as f:
+            f.write('ok')
+        os.remove(test_path)
+    except Exception as e:
+        blocked.append(('log directory', _CRASH_DIR, str(e)))
+
+    if not blocked:
+        return
+
+    # Something is blocked — log the crash and guide the user
+    detail = '; '.join(f'{lbl}: {err}' for lbl, _, err in blocked)
+
+    class _FileAccessError(OSError):
+        pass
+
+    exc = _FileAccessError(f'Cannot access required files — {detail}')
+    _write_crash(exc)
+
+    print('\n  ┌─────────────────────────────────────────────────────────┐')
+    print('  │  EVE: I can\'t access files needed to run KAM Sentinel.  │')
+    print('  └─────────────────────────────────────────────────────────┘')
+    for lbl, path, err in blocked:
+        print(f'    Blocked: {lbl}')
+        print(f'      Path : {path}')
+        print(f'      Error: {err}')
+    print()
+    print('  This is almost always an antivirus (Avast, Defender, etc.)')
+    print('  scanning or quarantining files while the app is running.')
+    print()
+    print('  FIX OPTIONS:')
+    print('    1. Add KAM Sentinel to your antivirus exclusions, then relaunch.')
+    print('    2. Temporarily disable real-time protection, relaunch once,')
+    print('       then re-enable it (CyberCapture will whitelist the app).')
+    print('    3. Run as Administrator.')
+    print()
+    print(f'  Crash details saved to: {_CRASH_LOG}')
+    time.sleep(10)
+    sys.exit(1)
+
 
 def open_browser(port=5000):
     time.sleep(2.5)
@@ -86,11 +178,14 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.5.18         ║")
+    print("  ║        KAM SENTINEL  v1.5.27         ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")
     print("  Close the browser tab to stop KAM Sentinel\n")
+
+    # Verify all required bundled files are accessible before importing Flask
+    _check_required_files()
 
     # Open browser after short delay
     threading.Thread(target=open_browser, args=(port,), daemon=True).start()
