@@ -125,15 +125,19 @@ except ImportError: _GPU = False
 
 def _get_gpus(timeout=5):
     """Call GPUtil.getGPUs() safely.
-    CI guard: nvidia-smi on ubuntu-latest hangs indefinitely with no real GPU —
-    ThreadPoolExecutor timeout doesn't reliably kill the blocked subprocess.
-    Real installs always have hardware present so the guard never fires there."""
+    CI guard: nvidia-smi on ubuntu-latest hangs indefinitely with no real GPU.
+    Real installs: use shutdown(wait=False) so a slow/hung nvidia-smi never
+    blocks the caller — the ThreadPoolExecutor timeout fires and we abandon
+    the hung thread immediately rather than waiting for it to finish."""
     if not _GPU: return []
     if os.environ.get('CI'): return []   # nuclear: no GPU subprocess in CI
+    _ex = ThreadPoolExecutor(max_workers=1)
     try:
-        with ThreadPoolExecutor(max_workers=1) as _ex:
-            return _ex.submit(GPUtil.getGPUs).result(timeout=timeout)
-    except Exception: return []
+        return _ex.submit(GPUtil.getGPUs).result(timeout=timeout)
+    except Exception:
+        return []
+    finally:
+        _ex.shutdown(wait=False)  # abandon hung nvidia-smi — never block
 
 _WMI = _wmi = None
 if sys.platform == 'win32':
@@ -152,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.30'
+VER               = '1.5.31'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -867,8 +871,15 @@ _install_id   = _get_install_id()
 _is_new       = not os.path.exists(os.path.join(PROF_DIR, 'launch_stats.json'))
 
 print('\n  Collecting system info...')
-try:    _sysinfo = _get_sysinfo(); print(f'  [OK] {_sysinfo.get("cpu_name","?")} | {_os_class()}')
-except Exception as e: _sysinfo = {}; _log_err('startup:sysinfo', e); print(f'  [WARN] {e}')
+_si_result = [{}]
+def _do_sysinfo():
+    try: _si_result[0] = _get_sysinfo()
+    except Exception as e: _log_err('startup:sysinfo', e)
+_si_thr = threading.Thread(target=_do_sysinfo, daemon=True)
+_si_thr.start(); _si_thr.join(timeout=3.0)
+_sysinfo = _si_result[0]
+if _sysinfo: print(f'  [OK] {_sysinfo.get("cpu_name","?")} | {_os_class()}')
+else: print('  [WARN] Hardware scan timed out — continuing with partial data')
 
 print('  Loading thresholds...')
 try:    _thresh = load_thresholds(PROF_DIR, _sysinfo.get('cpu_name',''), _sysinfo.get('gpu_name','')); print('  [OK] Thresholds ready')
@@ -1148,8 +1159,9 @@ def api_forge_benchmark_history():
 
 @app.route('/api/forge/benchmark/baseline')
 def api_forge_benchmark_baseline():
+    _no_data = jsonify(status='no_data', message='No baseline yet — run your first benchmark!')
     if not os.path.exists(BENCH_FILE):
-        return jsonify(error='No benchmark runs yet'), 404
+        return _no_data
     # Return first run tagged as baseline, fall back to first run
     first = None
     with open(BENCH_FILE, encoding='utf-8') as f:
@@ -1159,7 +1171,7 @@ def api_forge_benchmark_baseline():
                 if first is None: first = r
                 if r.get('baseline'): return jsonify(r)
             except: pass
-    return jsonify(first) if first else (jsonify(error='No valid runs'), 404)
+    return jsonify(first) if first else _no_data
 
 
 def _diagnose_crash(entry):

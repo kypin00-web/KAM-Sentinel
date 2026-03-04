@@ -1,9 +1,9 @@
 {
-  "version": "1.5.30",
-  "build": 37,
-  "date": "2026-03-03",
+  "version": "1.5.31",
+  "build": 38,
+  "date": "2026-03-04",
   "channel": "stable",
-  "changelog": "v1.5.30: Wes Mode removed, clean production build",
+  "changelog": "v1.5.31: Hardware scan timeout fix \u2014 loading screen never hangs",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,9 +13,9 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "CLEAN: Wes Mode / hearing calibration extracted to standalone Hearing Reborn bundle",
-    "CLEAN: TEST MODE button removed from production header",
-    "CLEAN: Eve voice and 404-alert popup fully intact",
-    "NEW: What's New v1.5.30 step added"
+    "FIX: _get_gpus() shutdown(wait=False) \u2014 nvidia-smi hang no longer blocks startup",
+    "FIX: Startup hardware scan capped at 3s \u2014 partial data shown rather than hanging",
+    "FIX: Frontend loading screen hard cap at 3s \u2014 never stuck on SCANNING HARDWARE",
+    "FIX: /api/forge/benchmark/baseline returns 200 with no_data status instead of 404"
   ]
 }

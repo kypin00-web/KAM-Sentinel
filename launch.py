@@ -44,7 +44,7 @@ def _write_crash(exc):
             'date':      datetime.datetime.now().isoformat(),
             'error':     type(exc).__name__ + ': ' + str(exc),
             'traceback': traceback.format_exc(),
-            'version':   '1.5.30',
+            'version':   '1.5.31',
             'os':        sys.platform,
             'username':  (os.environ.get('USERNAME') or os.environ.get('USER') or ''),
         }
@@ -178,7 +178,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.5.30         ║")
+    print("  ║        KAM SENTINEL  v1.5.31         ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")
