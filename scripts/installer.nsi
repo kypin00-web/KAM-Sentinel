@@ -75,6 +75,14 @@ Section "KAM Sentinel" SecMain
 
   SetOutPath "$INSTDIR"
 
+  ; ── Kill running instances before overwriting the exe ──────────────────────
+  ; The installer can't replace a file that's currently held open by Windows.
+  ; These commands are best-effort — exit code is ignored via ExecToLog.
+  nsExec::ExecToLog 'taskkill /F /IM "KAM Sentinel.exe" /T'
+  nsExec::ExecToLog 'taskkill /F /IM "KAM_Sentinel_Windows.exe" /T'
+  nsExec::ExecToLog 'taskkill /F /IM "kam_launcher.exe" /T'
+  Sleep 500
+
   ; Copy the main executable
   File "dist\KAM_Sentinel_Windows.exe"
 
@@ -121,6 +129,12 @@ Section "KAM Sentinel" SecMain
 
   ; Write the uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+  ; ── Clean up PyInstaller _MEI temp folders ─────────────────────────────────
+  ; PyInstaller extracts to %LOCALAPPDATA%\Temp\_MEI<random> each run and
+  ; cannot self-delete the folder while the exe is running. Purge leftovers now
+  ; that the old process is gone.
+  nsExec::ExecToLog 'cmd /C for /d %i in ("$LOCALAPPDATA\Temp\_MEI*") do rd /s /q "%i"'
 
 SectionEnd
 

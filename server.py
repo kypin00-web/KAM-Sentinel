@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.31'
+VER               = '1.5.32'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1431,7 +1431,10 @@ def api_update_install():
     try:
         subprocess.Popen([path], creationflags=subprocess.CREATE_NEW_CONSOLE)
         _flush_log(); _flush_errs()
-        threading.Timer(1.2, lambda: os._exit(0)).start()
+        # Wait 2 s so the installer process is fully started before we exit.
+        # os._exit(0) bypasses Flask teardown and releases the exe file lock
+        # immediately, allowing the installer to overwrite KAM_Sentinel_Windows.exe.
+        threading.Timer(2.0, lambda: os._exit(0)).start()
         return jsonify(status='launching')
     except Exception as e:
         _log_err('api_update_install', e)
