@@ -356,6 +356,8 @@ body.kam-dark-overlay {
 #eve-lhm-diy-btn:hover, #eve-lhm-dismiss-btn:hover { border-color:var(--text); color:var(--text); }
 #eve-lhm-progress { margin-top:8px; height:4px; background:rgba(255,255,255,.1); border-radius:2px; display:none; }
 #eve-lhm-progress-bar { height:100%; background:#ff6b9d; border-radius:2px; width:0; transition:width .3s; }
+@keyframes lhm-indeterminate { 0%,100%{opacity:.35} 50%{opacity:1} }
+#eve-lhm-progress-bar.indeterminate { width:60% !important; animation:lhm-indeterminate 1.2s ease-in-out infinite; transition:none; }
 #eve-lhm-status { font-size:.75rem; margin-top:8px; color:#ff6b9d; min-height:1em; }
 
 /* ── LHM DIY CARD ─────────────────────────────────────────────────────────── */
@@ -2425,11 +2427,18 @@ async function eveLhmInstall() {
     try {
       const sr = await fetch('/api/lhm/status');
       const sd = await sr.json();
-      if (progBar) progBar.style.width = (sd.progress || 0) + '%';
+      if (progBar) {
+        if (sd.progress > 0) {
+          progBar.classList.remove('indeterminate');
+          progBar.style.width = sd.progress + '%';
+        } else if (sd.state === 'downloading' || sd.state === 'extracting') {
+          progBar.classList.add('indeterminate');
+        }
+      }
       if (sd.state === 'running' || sd.lhm_running) {
         _lhmInstallPolling = false;
         if (statusEl) statusEl.textContent = '\u2705 Sensors active!';
-        if (progBar)  progBar.style.width = '100%';
+        if (progBar)  { progBar.classList.remove('indeterminate'); progBar.style.width = '100%'; }
         if (installBtn) { installBtn.disabled = false; installBtn.textContent = 'Done \u2705'; }
         setTimeout(() => eveLhmDismiss(), 2500);
         return;

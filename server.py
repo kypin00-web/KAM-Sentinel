@@ -1643,12 +1643,19 @@ def api_lhm_status():
         try:
             with open(PREF_FILE, encoding='utf-8') as f: prefs = json.load(f)
         except: pass
+    with _lhm_lock:
+        inst_state    = _lhm_state.get('state', 'idle')
+        inst_progress = _lhm_state.get('progress', 0)
+        inst_error    = _lhm_state.get('error')
     return jsonify(
         lhm_running   = _lhm_is_running(),
         na_count      = _count_na_sensors(),
         lhm_prompted  = prefs.get('lhm_prompted', False),
         lhm_installed = prefs.get('lhm_installed', False),
         lhm_path      = prefs.get('lhm_path', ''),
+        state         = inst_state,
+        progress      = inst_progress,
+        error         = inst_error,
     )
 
 def _download_lhm():
