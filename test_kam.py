@@ -1405,8 +1405,8 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.33'" in _dash16_src or "WN_VER = '1.5.33'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.33 -- users see latest What's New")
+    if "WN_VER     = '1.6.0'" in _dash16_src or "WN_VER = '1.6.0'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.6.0 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 
@@ -1590,6 +1590,148 @@ if _srv17_src:
         ok("server.py: /api/update/install uses 2.0s exit timer -- installer has time to start")
     else:
         fail("server.py: /api/update/install timer is not 2.0s -- installer may be killed before starting")
+
+# ── Section 18: OC Sandbox — JGM (Just Game Mode) ─────────────────────────────
+section("18. OC Sandbox — JGM (Just Game Mode)")
+
+import re as _re18
+_root18 = os.path.dirname(os.path.abspath(__file__))
+_srv18_path = os.path.join(_root18, 'server.py')
+_html18_path = os.path.join(_root18, 'dashboard.html')
+try:
+    with open(_srv18_path, encoding='utf-8') as _f:
+        _srv18 = _f.read()
+except Exception as _e18:
+    _srv18 = ''
+    fail(f"server.py read error in §18: {_e18}")
+
+try:
+    with open(_html18_path, encoding='utf-8') as _f:
+        _html18 = _f.read()
+except Exception as _e18h:
+    _html18 = ''
+    fail(f"dashboard.html read error in §18: {_e18h}")
+
+# -- Constants ----------------------------------------------------------------
+for _const in ('CONFIG_DIR', 'USER_PREFS_FILE', 'JGM_LOG_DEFAULT'):
+    if _const in _srv18:
+        ok(f"server.py: {_const} constant present")
+    else:
+        fail(f"server.py: {_const} constant missing")
+
+# -- Helper functions ---------------------------------------------------------
+for _fn in ('_load_user_prefs', '_save_user_prefs', '_jgm_log_path'):
+    if _fn in _srv18:
+        ok(f"server.py: {_fn}() present")
+    else:
+        fail(f"server.py: {_fn}() missing")
+
+# -- Routes registered --------------------------------------------------------
+_jgm_routes = [
+    '/api/forge/jgm/start',
+    '/api/forge/jgm/stop',
+    '/api/forge/jgm/log',
+    '/api/forge/jgm/log/open',
+    '/api/forge/jgm/log/location',
+]
+for _route in _jgm_routes:
+    if _route in _srv18:
+        ok(f"server.py: {_route} route registered")
+    else:
+        fail(f"server.py: {_route} route missing")
+
+# -- Flask test client --------------------------------------------------------
+try:
+    import server as _srv18_mod
+    _c18 = _srv18_mod.app.test_client()
+
+    # POST /api/forge/jgm/start — creates log entry, returns session_id
+    import json as _json18, tempfile as _tf18, os as _os18
+    _tmp_log = _os18.path.join(_tf18.gettempdir(), 'kam_test_jgm.jsonl')
+    # Override jgm log path via /api/forge/jgm/log/location
+    _loc_resp = _c18.post('/api/forge/jgm/log/location',
+                          data=_json18.dumps({'path': _tmp_log}),
+                          content_type='application/json')
+    if _loc_resp.status_code == 200:
+        ok("POST /api/forge/jgm/log/location -> 200 (path set)")
+    else:
+        fail(f"POST /api/forge/jgm/log/location -> {_loc_resp.status_code}")
+
+    _start_resp = _c18.post('/api/forge/jgm/start',
+                            data=_json18.dumps({'game_detected': 'TestGame', 'killed': ['notepad.exe']}),
+                            content_type='application/json')
+    if _start_resp.status_code == 200:
+        _start_data = _json18.loads(_start_resp.data)
+        if 'session_id' in _start_data and _start_data.get('status') == 'ok':
+            ok("POST /api/forge/jgm/start -> 200, returns session_id")
+        else:
+            fail(f"POST /api/forge/jgm/start -> unexpected payload: {_start_data}")
+    else:
+        fail(f"POST /api/forge/jgm/start -> {_start_resp.status_code}")
+
+    # GET /api/forge/jgm/log — returns entries list
+    _log_resp = _c18.get('/api/forge/jgm/log')
+    if _log_resp.status_code == 200:
+        _log_data = _json18.loads(_log_resp.data)
+        if 'entries' in _log_data and isinstance(_log_data['entries'], list):
+            ok(f"GET /api/forge/jgm/log -> 200, entries list (len={len(_log_data['entries'])})")
+        else:
+            fail(f"GET /api/forge/jgm/log -> missing 'entries' key")
+    else:
+        fail(f"GET /api/forge/jgm/log -> {_log_resp.status_code}")
+
+    # POST /api/forge/jgm/stop — 400 if no session_id
+    _stop_bad = _c18.post('/api/forge/jgm/stop',
+                          data=_json18.dumps({}),
+                          content_type='application/json')
+    if _stop_bad.status_code == 400:
+        ok("POST /api/forge/jgm/stop (no session_id) -> 400 as expected")
+    else:
+        fail(f"POST /api/forge/jgm/stop (no session_id) -> {_stop_bad.status_code} (expected 400)")
+
+    # POST /api/forge/jgm/log/location — 400 if no .jsonl extension
+    _bad_loc = _c18.post('/api/forge/jgm/log/location',
+                         data=_json18.dumps({'path': '/tmp/notjsonl.txt'}),
+                         content_type='application/json')
+    if _bad_loc.status_code == 400:
+        ok("POST /api/forge/jgm/log/location (bad ext) -> 400 as expected")
+    else:
+        fail(f"POST /api/forge/jgm/log/location (bad ext) -> {_bad_loc.status_code} (expected 400)")
+
+    # POST /api/forge/jgm/log/location — 400 if path empty
+    _empty_loc = _c18.post('/api/forge/jgm/log/location',
+                           data=_json18.dumps({'path': ''}),
+                           content_type='application/json')
+    if _empty_loc.status_code == 400:
+        ok("POST /api/forge/jgm/log/location (empty path) -> 400 as expected")
+    else:
+        fail(f"POST /api/forge/jgm/log/location (empty path) -> {_empty_loc.status_code} (expected 400)")
+
+    # Cleanup temp log
+    try:
+        if _os18.path.exists(_tmp_log):
+            _os18.remove(_tmp_log)
+    except Exception:
+        pass
+
+except Exception as _e18_client:
+    fail(f"§18 Flask client error: {_e18_client}")
+
+# -- Dashboard HTML -----------------------------------------------------------
+_jgm_html_checks = [
+    ('id="jgmCard"',       'jgm-card element present'),
+    ('id="jgmToggle"',     'JGM toggle input present'),
+    ('id="jgmTurnOffBtn"', 'JGM turn-off button present'),
+    ('toggleJGM',          'toggleJGM() function present'),
+    ('jgmTurnOff',         'jgmTurnOff() function present'),
+    ('jgmOpenLog',         'jgmOpenLog() function present'),
+    ('jgmSaveLocation',    'jgmSaveLocation() function present'),
+]
+for _selector, _label in _jgm_html_checks:
+    if _selector in _html18:
+        ok(f"dashboard.html: {_label}")
+    else:
+        fail(f"dashboard.html: {_label} -- not found")
 
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime

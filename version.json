@@ -1,5 +1,5 @@
 {
-  "version": "1.5.33",
+  "version": "1.6.0",
   "build": 39,
   "date": "2026-03-11",
   "channel": "stable",
@@ -12,10 +12,5 @@
     "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
-  "changes": [
-    "v1.5.33: Phase 2.5 \u2014 LibreHardwareMonitor integration (auto-install, Eve prompt, sensor status dot)",
-    "FIX: Installer kills running KAM Sentinel processes before overwriting the exe",
-    "FIX: /api/update/install waits 2s before os._exit(0) so installer fully starts",
-    "FIX: Installer purges PyInstaller _MEI temp folders after install completes"
-  ]
+  "changes": "v1.6.0: OC Sandbox Module 1 \u2014 Just Game Mode (JGM) with session logging, log location control, and 5 new API routes"
 }

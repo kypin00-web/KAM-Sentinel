@@ -156,11 +156,16 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.33'
+VER               = '1.6.0'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
 _FAN_CURVE_FILE = os.path.join(PROF_DIR, 'fan_curve.json')
+
+CONFIG_DIR      = os.path.join(DATA_DIR, 'config')
+USER_PREFS_FILE = os.path.join(CONFIG_DIR, 'user_prefs.json')
+JGM_LOG_DEFAULT = os.path.join(LOG_DIR, 'jgm_killed.jsonl')
+os.makedirs(CONFIG_DIR, exist_ok=True)
 
 LHM_DIR  = os.path.join(
     os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'KAM Sentinel', 'LHM'
@@ -179,6 +184,21 @@ def _load_active_preset():
                 return json.load(f).get('active', 'BALANCED')
         except: pass
     return 'BALANCED'
+
+def _load_user_prefs():
+    if os.path.exists(USER_PREFS_FILE):
+        try:
+            with open(USER_PREFS_FILE, encoding='utf-8') as f:
+                return json.load(f)
+        except: pass
+    return {}
+
+def _save_user_prefs(prefs):
+    with open(USER_PREFS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(prefs, f, indent=2)
+
+def _jgm_log_path():
+    return _load_user_prefs().get('jgm_log_path', JGM_LOG_DEFAULT)
 
 def _read_fan_rpms():
     """Read fan RPMs from LibreHardwareMonitor WMI namespace. Windows-only."""
@@ -1201,6 +1221,105 @@ def api_forge_fan_curves_select():
     except Exception as e:
         _log_err('fan_curves_select', e)
     return jsonify(status='ok', active=_active_fan_preset)
+
+# ── JGM (Just Game Mode) log routes ─────────────────────────────────────────
+@app.route('/api/forge/jgm/start', methods=['POST'])
+def api_forge_jgm_start():
+    import uuid
+    d = request.get_json(silent=True) or {}
+    entry = {
+        'timestamp': datetime.datetime.now().isoformat(),
+        'session_id': str(uuid.uuid4()),
+        'game_detected': d.get('game_detected', ''),
+        'killed': d.get('killed', []),
+        'restored': False,
+    }
+    log_path = _jgm_log_path()
+    os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(entry) + '\n')
+    return jsonify(status='ok', session_id=entry['session_id'])
+
+@app.route('/api/forge/jgm/stop', methods=['POST'])
+def api_forge_jgm_stop():
+    d = request.get_json(silent=True) or {}
+    session_id = d.get('session_id')
+    if not session_id:
+        return jsonify(error='session_id required'), 400
+    log_path = _jgm_log_path()
+    if not os.path.exists(log_path):
+        return jsonify(error='no_log_yet'), 404
+    lines = []
+    updated = False
+    with open(log_path, encoding='utf-8') as f:
+        for ln in f:
+            try:
+                entry = json.loads(ln)
+                if entry.get('session_id') == session_id:
+                    entry['restored'] = True
+                    updated = True
+                lines.append(json.dumps(entry))
+            except:
+                lines.append(ln.rstrip('\n'))
+    if not updated:
+        return jsonify(error='session_not_found'), 404
+    with open(log_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    return jsonify(status='ok')
+
+@app.route('/api/forge/jgm/log')
+def api_forge_jgm_log():
+    log_path = _jgm_log_path()
+    if not os.path.exists(log_path):
+        return jsonify(entries=[])
+    entries = []
+    with open(log_path, encoding='utf-8') as f:
+        for ln in f:
+            try: entries.append(json.loads(ln))
+            except: pass
+    return jsonify(entries=list(reversed(entries[-50:])))
+
+@app.route('/api/forge/jgm/log/open')
+def api_forge_jgm_log_open():
+    log_path = _jgm_log_path()
+    if not os.path.exists(log_path):
+        return jsonify(error='no_log_yet'), 404
+    try:
+        if sys.platform == 'win32':
+            os.startfile(log_path)
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', log_path])
+        else:
+            subprocess.Popen(['xdg-open', log_path])
+        return jsonify(opened=True)
+    except Exception as e:
+        _log_err('jgm_log_open', e)
+        return jsonify(error=str(e)), 500
+
+@app.route('/api/forge/jgm/log/location', methods=['POST'])
+def api_forge_jgm_log_location():
+    d = request.get_json(silent=True) or {}
+    path = d.get('path', '').strip()
+    if not path:
+        return jsonify(error='path required'), 400
+    if not path.endswith('.jsonl'):
+        return jsonify(error='path must end with .jsonl'), 400
+    try:
+        test_dir = os.path.dirname(os.path.abspath(path))
+        os.makedirs(test_dir, exist_ok=True)
+        test_f = os.path.join(test_dir, '.kam_write_test')
+        with open(test_f, 'w', encoding='utf-8') as f: f.write('x')
+        os.remove(test_f)
+    except Exception:
+        return jsonify(error='not_writable'), 400
+    prefs = _load_user_prefs()
+    prefs['jgm_log_path'] = path
+    try:
+        _save_user_prefs(prefs)
+    except Exception as e:
+        _log_err('jgm_log_location', e)
+        return jsonify(error='save_failed'), 500
+    return jsonify(status='ok', path=path)
 
 @app.route('/api/forge/benchmark', methods=['POST'])
 def api_forge_benchmark():

@@ -694,6 +694,33 @@ footer {
 .bench-history td { padding:4px 6px; color:var(--text); border-bottom:1px solid var(--border); }
 .bench-history tr:last-child td { border-bottom:none; }
 .baseline-tag { color:var(--cyan); font-size:.6rem; font-family:'Share Tech Mono',monospace; }
+/* ── JGM CARD ─────────────────────────────────────────────────────────────── */
+.jgm-card { background:linear-gradient(135deg,var(--bg2),var(--bg3)); border:1px solid var(--border); border-radius:8px; padding:18px 20px; transition:border-color .22s, background .22s, box-shadow .22s; }
+.jgm-card.active { border-color:rgba(0,229,255,.3); background:rgba(0,229,255,.04); box-shadow:0 0 24px rgba(0,229,255,.12); }
+.jgm-card-top { display:flex; align-items:center; gap:14px; }
+.jgm-icon { font-size:22px; flex-shrink:0; }
+.jgm-info { flex:1; }
+.jgm-title { font-family:'Share Tech Mono',monospace; font-size:.65rem; letter-spacing:3px; color:var(--cyan); margin-bottom:3px; }
+.jgm-desc { font-size:.8rem; color:var(--dim2); line-height:1.5; }
+.toggle-wrap { display:flex; align-items:center; flex-shrink:0; }
+.toggle-input { display:none; }
+.toggle-label { display:inline-block; width:42px; height:24px; background:var(--bg4); border:1px solid var(--border2); border-radius:12px; cursor:pointer; position:relative; transition:background .22s, border-color .22s; }
+.toggle-label::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; background:var(--dim2); border-radius:50%; transition:transform .22s, background .22s; }
+.toggle-input:checked + .toggle-label { background:rgba(0,229,255,.2); border-color:var(--cyan); }
+.toggle-input:checked + .toggle-label::after { transform:translateX(18px); background:var(--cyan); }
+.jgm-turnoff-btn { display:block; width:100%; margin-top:12px; padding:7px 14px; border-radius:5px; font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:2px; cursor:pointer; transition:all .22s; border:1px solid var(--border2); background:var(--bg4); color:var(--dim2); }
+.jgm-turnoff-btn.on { border-color:rgba(255,68,68,.5); background:rgba(255,68,68,.1); color:var(--red); }
+.jgm-turnoff-btn.on:hover { background:rgba(255,68,68,.2); box-shadow:0 0 12px rgba(255,68,68,.2); }
+.jgm-log-row { display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); flex-wrap:wrap; }
+.jgm-log-btn { background:var(--bg3); border:1px solid var(--border2); color:var(--dim2); font-family:'Share Tech Mono',monospace; font-size:.58rem; letter-spacing:1px; padding:5px 12px; border-radius:3px; cursor:pointer; transition:all .2s; }
+.jgm-log-btn:hover { border-color:var(--cyan); color:var(--text); }
+.jgm-path-wrap { display:none; align-items:center; gap:6px; width:100%; margin-top:8px; }
+.jgm-path-wrap.open { display:flex; }
+.jgm-path-input { flex:1; background:var(--bg4); border:1px solid var(--border2); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.65rem; padding:5px 8px; border-radius:3px; outline:none; }
+.jgm-path-input:focus { border-color:var(--cyan); }
+.jgm-path-save { background:rgba(0,229,255,.1); border:1px solid rgba(0,229,255,.3); color:var(--cyan); font-family:'Share Tech Mono',monospace; font-size:.58rem; letter-spacing:1px; padding:5px 12px; border-radius:3px; cursor:pointer; transition:all .2s; flex-shrink:0; }
+.jgm-path-save:hover { background:rgba(0,229,255,.2); }
+.jgm-log-status { font-size:.72rem; color:var(--dim2); margin-left:auto; transition:color .2s; }
 </style>
 </head>
 <body>
@@ -982,6 +1009,36 @@ footer {
       <div id="fan-rpm-list" class="fan-rpm-list">—</div>
     </div>
   </div>
+
+  <!-- JUST GAME MODE CARD -->
+  <div class="section-label">JUST GAME MODE</div>
+  <div class="forge-grid">
+    <div class="jgm-card" id="jgmCard">
+      <div class="jgm-card-top">
+        <div class="jgm-icon">🎮</div>
+        <div class="jgm-info">
+          <div class="jgm-title">JUST GAME MODE</div>
+          <div class="jgm-desc" id="jgmDesc">Off — Sentinel will ask before making changes.</div>
+        </div>
+        <div class="toggle-wrap">
+          <input type="checkbox" class="toggle-input" id="jgmToggle" onchange="toggleJGM(this)">
+          <label class="toggle-label" for="jgmToggle"></label>
+        </div>
+      </div>
+      <button class="jgm-turnoff-btn" id="jgmTurnOffBtn" onclick="jgmTurnOff()" style="display:none">JUST GAME MODE IS OFF</button>
+      <!-- Log controls footer -->
+      <div class="jgm-log-row">
+        <button class="jgm-log-btn" onclick="jgmOpenLog()">&#x1F4C2; OPEN LOG</button>
+        <button class="jgm-log-btn" id="jgmChangeLocBtn" onclick="jgmToggleLocationEditor()">&#x1F4C1; CHANGE LOCATION</button>
+        <span class="jgm-log-status" id="jgmLogStatus"></span>
+      </div>
+      <div class="jgm-path-wrap" id="jgmPathWrap">
+        <input class="jgm-path-input" id="jgmPathInput" type="text" placeholder="e.g. C:\logs\jgm_killed.jsonl" spellcheck="false">
+        <button class="jgm-path-save" onclick="jgmSaveLocation()">SAVE</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <footer id="footer-ver">KAM Sentinel &nbsp;|&nbsp; Running locally &nbsp;|&nbsp; Original profile backed up on first launch</footer>
@@ -2169,7 +2226,7 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.33';
+  const WN_VER     = '1.6.0';
   let wnStep = 0, _wnSteps, wnDots, wnNext, wnProgress;
 
   // Compare semver strings: returns true if a > b
@@ -2546,6 +2603,107 @@ async function eveFix() {
   } catch(e) {
     if (status) { status.textContent = 'Could not reach server \u2014 try again?'; status.style.color = 'var(--red)'; }
     if (btn) { btn.disabled = false; btn.textContent = 'Retry \uD83D\uDC95'; }
+  }
+}
+
+/* ── JUST GAME MODE ──────────────────────────────────────────────────────── */
+function toggleJGM(input) {
+  const card    = document.getElementById('jgmCard');
+  const desc    = document.getElementById('jgmDesc');
+  const offBtn  = document.getElementById('jgmTurnOffBtn');
+  const isOn    = input.checked;
+  card.classList.toggle('active', isOn);
+  desc.textContent = isOn
+    ? 'ON \u2014 I\'ll handle optimizations silently. Only alerting on thermal emergencies.'
+    : 'Off \u2014 Sentinel will ask before making changes.';
+  if (offBtn) {
+    offBtn.style.display = '';
+    if (isOn) {
+      offBtn.classList.add('on');
+      offBtn.textContent = 'TURN OFF JUST GAME MODE';
+    } else {
+      offBtn.classList.remove('on');
+      offBtn.textContent = 'JUST GAME MODE IS OFF';
+    }
+  }
+}
+
+function jgmTurnOff() {
+  const toggle = document.getElementById('jgmToggle');
+  if (!toggle || !toggle.checked) return;
+  toggle.checked = false;
+  toggleJGM(toggle);
+}
+
+async function jgmOpenLog() {
+  const status = document.getElementById('jgmLogStatus');
+  try {
+    const r = await fetch('/api/forge/jgm/log/open');
+    if (r.status === 404) {
+      if (status) { status.textContent = 'No sessions logged yet \uD83D\uDC95'; status.style.color = 'var(--dim2)'; }
+      setTimeout(() => { if (status) status.textContent = ''; }, 3500);
+    } else if (r.ok) {
+      if (status) { status.textContent = '\u2713 Opened'; status.style.color = 'var(--green)'; }
+      setTimeout(() => { if (status) status.textContent = ''; }, 2000);
+    } else {
+      if (status) { status.textContent = '\u26A0 Could not open log'; status.style.color = 'var(--red)'; }
+      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+    }
+  } catch(e) {
+    if (status) { status.textContent = '\u26A0 Server unreachable'; status.style.color = 'var(--red)'; }
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  }
+}
+
+function jgmToggleLocationEditor() {
+  const wrap  = document.getElementById('jgmPathWrap');
+  const input = document.getElementById('jgmPathInput');
+  const status = document.getElementById('jgmLogStatus');
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  if (isOpen) {
+    wrap.classList.remove('open');
+    if (status) status.textContent = '';
+  } else {
+    // Pre-fill with current path from server
+    fetch('/api/forge/jgm/log')
+      .then(r => r.json())
+      .then(d => {
+        if (input && !input.value) {
+          // Show the configured path — fetch from user prefs isn't direct,
+          // so we ask the start endpoint for a dummy to discover the path.
+          // Instead, just pre-fill with the default hint.
+        }
+      }).catch(() => {});
+    wrap.classList.add('open');
+    if (input) input.focus();
+    if (status) status.textContent = '';
+  }
+}
+
+async function jgmSaveLocation() {
+  const input  = document.getElementById('jgmPathInput');
+  const status = document.getElementById('jgmLogStatus');
+  const wrap   = document.getElementById('jgmPathWrap');
+  const path   = input ? input.value.trim() : '';
+  if (!path) { if (status) { status.textContent = '\u26A0 Enter a path first'; status.style.color = 'var(--red)'; } return; }
+  try {
+    const r = await fetch('/api/forge/jgm/log/location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (r.ok) {
+      if (status) { status.textContent = '\u2713 Saved'; status.style.color = 'var(--green)'; }
+      if (wrap) wrap.classList.remove('open');
+      setTimeout(() => { if (status) status.textContent = ''; }, 2500);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      const msg = d.error === 'not_writable' ? '\u26A0 Path not writable' : '\u26A0 ' + (d.error || 'Save failed');
+      if (status) { status.textContent = msg; status.style.color = 'var(--red)'; }
+    }
+  } catch(e) {
+    if (status) { status.textContent = '\u26A0 Server unreachable'; status.style.color = 'var(--red)'; }
   }
 }
 </script>
