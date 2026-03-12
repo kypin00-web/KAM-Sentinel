@@ -184,6 +184,27 @@ def _lhm_autostart():
         pass
     return None
 
+def _kill_existing_server(port):
+    """If port is already bound, kill that process so we don't open a second instance."""
+    try:
+        import psutil
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                try:
+                    proc = psutil.Process(conn.pid)
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                except psutil.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def open_browser(port=5000):
     time.sleep(2.5)
     webbrowser.open(f'http://localhost:{port}')
@@ -244,6 +265,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, _on_sigint)
 
     try:
+        _kill_existing_server(port)
         from server import app
         print(f"  Open browser -> http://localhost:{port}")
         print("  Press Ctrl+C or close browser tab to stop\n")
