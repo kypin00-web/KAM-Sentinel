@@ -2369,7 +2369,7 @@ async function eveLhmCheckOnLoad() {
     const r = await fetch('/api/lhm/status');
     if (!r.ok) return;
     const d = await r.json();
-    if (d.lhm_running || d.lhm_prompted || d.na_count < 2) return;
+    if (d.lhm_running || d.lhm_prompted || d.na_count < 1) return;
     eveLhmPromptShow();
   } catch(_) {}
 }
