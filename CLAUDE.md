@@ -129,6 +129,8 @@ Warnings are dismissible banners (yellow=warning, red=critical). Auto re-enable 
 
 6. **ALWAYS push tags immediately after creating them.** Run `git push origin main --tags` after every `git tag`. Never leave a tag local-only. Verify with: `git ls-remote origin refs/tags/vX.X.X` — if output is empty, the tag is not on remote. The post-commit hook in `.git/hooks/post-commit` will warn if a local tag is unpushed.
 
+7. **Every version tag commit MUST include a version.json bump.** Never tag `vX.Y.Z` without first updating `version.json` (root) and `docs/version.json` to `"version": "X.Y.Z"` in the **same commit**. Use `python -c "import json; ..."` to write JSON — never heredoc/bash echo (backslash corruption). The pattern: bump VER in server.py → bump version.json → commit all three together → tag → push. A tag without a matching version.json is a broken release: the update banner will show the wrong version to end users.
+
 ---
 
 ## Distribution / PyInstaller Notes

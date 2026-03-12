@@ -1,9 +1,9 @@
 {
-  "version": "1.6.2",
-  "build": 40,
+  "version": "1.6.4",
+  "build": 42,
   "date": "2026-03-12",
   "channel": "stable",
-  "changelog": "v1.6.2: Fix update cycle (exe now replaces installed copy), LHM prompt threshold, download progress bar",
+  "changelog": "v1.6.4: Fix WinError 740 crash on LHM autostart, update bat copy verification, NSIS version guard prevents rollback",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,5 +12,5 @@
     "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
-  "changes": "v1.6.2: Auto-updater now correctly overwrites the installed exe \u2014 no more repeat update cycle. LHM Eve prompt fires correctly on Windows with WMI. Download progress bar shows indeterminate animation when Content-Length unavailable."
+  "changes": "v1.6.4: LHM autostart no longer crashes server on WinError 740 (UAC elevation). Update bat now verifies copy succeeded before relaunching. NSIS installer refuses to overwrite a newer installed version."
 }

@@ -10,6 +10,7 @@
 !cd ".."
 
 !include "MUI2.nsh"
+!include "WordFunc.nsh"   ; provides VersionCompare
 
 ;----------------------------------------------------------------
 ; Build-time version (passed via /DVER= flag; fallback to 0.0.0)
@@ -74,6 +75,21 @@ $\r$\nThis wizard will install KAM Sentinel on your computer."
 Section "KAM Sentinel" SecMain
 
   SetOutPath "$INSTDIR"
+
+  ; ── Version guard — never let an old installer overwrite a newer install ────
+  ; Read the version we wrote to the registry on the previous install.
+  ; If installed version > bundled version, abort with a friendly message.
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KAM Sentinel" "DisplayVersion"
+  ${If} $0 != ""
+    ${VersionCompare} $0 "${VER}" $1
+    ${If} $1 == 1   ; $1==1 means installed ($0) is newer than bundled (${VER})
+      MessageBox MB_OK|MB_ICONINFORMATION \
+        "KAM Sentinel $0 is already installed.$\r$\n\
+This installer contains an older version (${VER}) and will not downgrade your installation.$\r$\n$\r$\n\
+Your current version is untouched."
+      Abort
+    ${EndIf}
+  ${EndIf}
 
   ; ── Kill running instances before overwriting the exe ──────────────────────
   ; The installer can't replace a file that's currently held open by Windows.

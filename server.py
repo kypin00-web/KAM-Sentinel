@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.2'
+VER               = '1.6.4'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1646,6 +1646,10 @@ def api_update_install():
                 f.write('@echo off\n')
                 f.write('timeout /t 3 /nobreak >nul\n')
                 f.write(f'copy /Y "{path}" "{target}"\n')
+                f.write('if errorlevel 1 (\n')
+                f.write(f'  echo UPDATE FAILED: copy error >> "%TEMP%\\kam_update_error.log"\n')
+                f.write('  exit /b 1\n')
+                f.write(')\n')
                 f.write(f'start "" "{target}"\n')
                 f.write('del "%~f0"\n')
             subprocess.Popen(
