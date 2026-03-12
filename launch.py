@@ -148,41 +148,75 @@ def _check_required_files():
 
 
 def _lhm_autostart():
-    """Silently relaunch LHM if Eve installed it previously and it's not running."""
+    """Auto-manage LHM as a silent dependency on startup.
+
+    Decision tree:
+    1. If LHM is already running (any instance) → do nothing, leave it alone.
+    2. If LHM is installed at the standard path (or saved pref path) → start it
+       silently, mark _lhm_proc so we own it and can close it on exit.
+    3. If not installed → do nothing; Eve's prompt will handle it.
+    """
     if sys.platform != 'win32':
         return None
     try:
-        import json, subprocess
-        pref_path = os.path.join(
-            os.environ.get('APPDATA', os.path.expanduser('~')),
-            'KAM Sentinel', 'profiles', 'preferences.json'
-        )
-        if not os.path.exists(pref_path):
-            return None
-        with open(pref_path, encoding='utf-8') as f:
-            prefs = json.load(f)
-        if not prefs.get('lhm_installed') or not prefs.get('lhm_path'):
-            return None
-        lhm_exe = prefs['lhm_path']
-        if not os.path.exists(lhm_exe):
-            return None
-        try:                          # Already running? Don't launch a second copy.
-            import wmi as _wm
-            _wm.WMI(namespace='root/LibreHardwareMonitor')
-            return None
-        except:
-            pass
-        proc = subprocess.Popen([lhm_exe, '/minimized'],
-                                creationflags=subprocess.CREATE_NO_WINDOW,
-                                close_fds=True)
-        try:
-            import server as _srv
-            _srv._lhm_proc = proc
-        except: pass
-        return proc
+        import psutil as _ps
+        # Step 1: already running? (psutil catches non-admin instances too)
+        for _p in _ps.process_iter(['name']):
+            if _p.info['name'] and 'LibreHardwareMonitor' in _p.info['name']:
+                return None   # already up — don't touch it, _lhm_proc stays None
     except Exception:
         pass
-    return None
+    try:
+        # WMI namespace fallback (catches admin instances psutil might miss)
+        import wmi as _wm
+        _wm.WMI(namespace='root/LibreHardwareMonitor')
+        return None
+    except:
+        pass
+
+    # Step 2: not running — find the exe
+    import json, subprocess
+    lhm_exe = None
+
+    # Check standard install location first
+    _std = os.path.join(
+        os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
+        'KAM Sentinel', 'LHM', 'LibreHardwareMonitor.exe'
+    )
+    if os.path.exists(_std):
+        lhm_exe = _std
+
+    # Fall back to saved pref path
+    if not lhm_exe:
+        try:
+            pref_path = os.path.join(
+                os.environ.get('APPDATA', os.path.expanduser('~')),
+                'KAM Sentinel', 'profiles', 'preferences.json'
+            )
+            if os.path.exists(pref_path):
+                with open(pref_path, encoding='utf-8') as f:
+                    prefs = json.load(f)
+                _saved = prefs.get('lhm_path', '')
+                if _saved and os.path.exists(_saved):
+                    lhm_exe = _saved
+        except Exception:
+            pass
+
+    if not lhm_exe:
+        return None   # Step 3: not installed — Eve prompt handles it
+
+    # Start LHM minimized to tray, silently
+    proc = subprocess.Popen(
+        [lhm_exe, '/minimized'],
+        creationflags=subprocess.CREATE_NO_WINDOW,
+        close_fds=True,
+    )
+    try:
+        import server as _srv
+        _srv._lhm_proc = proc   # mark as owned — shutdown will close it
+    except Exception:
+        pass
+    return proc
 
 def _kill_existing_server(port):
     """If port is already bound, kill that process so we don't open a second instance."""

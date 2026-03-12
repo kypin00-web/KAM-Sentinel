@@ -239,9 +239,19 @@ def _lhm_read_sensors():
     return result
 
 def _lhm_is_running():
-    """Return True if LibreHardwareMonitor WMI namespace is reachable."""
+    """Return True if LibreHardwareMonitor is running.
+
+    Checks psutil process list first (works without admin rights), then falls
+    back to the WMI namespace (only exposed when LHM runs as Administrator).
+    """
     if sys.platform != 'win32':
         return False
+    try:
+        for _p in psutil.process_iter(['name']):
+            if _p.info['name'] and 'LibreHardwareMonitor' in _p.info['name']:
+                return True
+    except Exception:
+        pass
     try:
         import wmi as _w
         _w.WMI(namespace='root/LibreHardwareMonitor')
