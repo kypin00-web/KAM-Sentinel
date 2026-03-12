@@ -205,12 +205,20 @@ def _lhm_autostart():
     if not lhm_exe:
         return None   # Step 3: not installed — Eve prompt handles it
 
-    # Start LHM minimized to tray, silently
-    proc = subprocess.Popen(
-        [lhm_exe, '/minimized'],
-        creationflags=subprocess.CREATE_NO_WINDOW,
-        close_fds=True,
-    )
+    # Start LHM minimized to tray, silently.
+    # Never elevate — LHM's UAC manifest may request admin, but we launch as
+    # a normal user process.  WinError 740 (elevation required) or any other
+    # launch failure must be swallowed so the server always starts.
+    try:
+        proc = subprocess.Popen(
+            [lhm_exe, '/minimized'],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            close_fds=True,
+        )
+    except OSError:
+        return None   # WinError 740 or other OS launch error — Eve handles it
+    except Exception:
+        return None   # Any other failure — same: degrade gracefully
     try:
         import server as _srv
         _srv._lhm_proc = proc   # mark as owned — shutdown will close it
@@ -283,8 +291,12 @@ if __name__ == '__main__':
     # Verify all required bundled files are accessible before importing Flask
     _check_required_files()
 
-    # Silently relaunch LHM if Eve installed it previously
-    _lhm_autostart()
+    # Silently relaunch LHM if Eve installed it previously.
+    # LHM is optional — any failure here must never crash the server.
+    try:
+        _lhm_autostart()
+    except Exception:
+        pass
 
     # Open browser after short delay
     threading.Thread(target=open_browser, args=(port,), daemon=True).start()
