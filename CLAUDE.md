@@ -127,6 +127,8 @@ Warnings are dismissible banners (yellow=warning, red=critical). Auto re-enable 
 
 5. **`/api/autofix` has a strict `ALLOWED_FIXES` whitelist** — only `pip install GPUtil` and `pip install wmi pywin32` are permitted. Never expand this without careful review.
 
+6. **ALWAYS push tags immediately after creating them.** Run `git push origin main --tags` after every `git tag`. Never leave a tag local-only. Verify with: `git ls-remote origin refs/tags/vX.X.X` — if output is empty, the tag is not on remote. The post-commit hook in `.git/hooks/post-commit` will warn if a local tag is unpushed.
+
 ---
 
 ## Distribution / PyInstaller Notes
