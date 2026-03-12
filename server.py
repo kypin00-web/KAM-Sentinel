@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.0'
+VER               = '1.6.2'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1625,11 +1625,29 @@ def api_update_install():
     if not os.path.exists(path):
         return jsonify(error='Installer file missing — re-download'), 404
     try:
-        subprocess.Popen([path], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        if getattr(sys, 'frozen', False):
+            # Frozen exe: write a helper bat that waits for us to exit (2 s),
+            # then copies the downloaded exe over the installed location and
+            # relaunches from there.  This keeps a single server instance and
+            # ensures the installed exe is actually replaced on disk.
+            target = sys.executable  # e.g. %LOCALAPPDATA%\KAM Sentinel\KAM_Sentinel_Windows.exe
+            bat = os.path.join(os.path.dirname(path), '_kam_update.bat')
+            with open(bat, 'w', encoding='utf-8') as f:
+                f.write('@echo off\n')
+                f.write('timeout /t 3 /nobreak >nul\n')
+                f.write(f'copy /Y "{path}" "{target}"\n')
+                f.write(f'start "" "{target}"\n')
+                f.write('del "%~f0"\n')
+            subprocess.Popen(
+                ['cmd', '/c', bat],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                close_fds=True,
+            )
+        else:
+            # Dev mode: just run the downloaded exe directly (no install needed).
+            subprocess.Popen([path], creationflags=subprocess.CREATE_NEW_CONSOLE)
         _flush_log(); _flush_errs()
-        # Wait 2 s so the installer process is fully started before we exit.
-        # os._exit(0) bypasses Flask teardown and releases the exe file lock
-        # immediately, allowing the installer to overwrite KAM_Sentinel_Windows.exe.
+        # os._exit(0) releases the exe file lock so the bat can overwrite it.
         threading.Timer(2.0, lambda: os._exit(0)).start()
         return jsonify(status='launching')
     except Exception as e:

@@ -1,9 +1,9 @@
 {
-  "version": "1.6.0",
-  "build": 39,
-  "date": "2026-03-11",
+  "version": "1.6.2",
+  "build": 40,
+  "date": "2026-03-12",
   "channel": "stable",
-  "changelog": "v1.5.32: Auto-updater kills running app before install, 2s exit delay, temp cleanup",
+  "changelog": "v1.6.2: Fix update cycle (exe now replaces installed copy), LHM prompt threshold, download progress bar",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,5 +12,5 @@
     "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
-  "changes": "v1.6.0: OC Sandbox Module 1 \u2014 Just Game Mode (JGM) with session logging, log location control, and 5 new API routes"
+  "changes": "v1.6.2: Auto-updater now correctly overwrites the installed exe \u2014 no more repeat update cycle. LHM Eve prompt fires correctly on Windows with WMI. Download progress bar shows indeterminate animation when Content-Length unavailable."
 }
