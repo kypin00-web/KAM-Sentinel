@@ -156,11 +156,21 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.5.32'
+VER               = '1.5.33'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
 _FAN_CURVE_FILE = os.path.join(PROF_DIR, 'fan_curve.json')
+
+LHM_DIR  = os.path.join(
+    os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'KAM Sentinel', 'LHM'
+)
+LHM_URL  = ('https://github.com/LibreHardwareMonitor/LibreHardwareMonitor'
+             '/releases/latest/download/LibreHardwareMonitor.zip')
+
+_lhm_lock  = threading.Lock()
+_lhm_state = {'state': 'idle', 'progress': 0, 'error': None}
+_lhm_proc  = None   # Popen handle if KAM Sentinel launched LHM (None if user-run)
 
 def _load_active_preset():
     if os.path.exists(_FAN_CURVE_FILE):
@@ -185,6 +195,57 @@ def _read_fan_rpms():
     except:
         return []
 
+def _lhm_read_sensors():
+    """Query root/LibreHardwareMonitor WMI for temp, volt, fans. Windows-only."""
+    result = {'available': False, 'temp': None, 'volt': None, 'fans': []}
+    if sys.platform != 'win32':
+        return result
+    try:
+        import wmi as _w
+        lhm = _w.WMI(namespace='root/LibreHardwareMonitor')
+        for s in lhm.Sensor():
+            val = float(s.Value) if s.Value is not None else None
+            if val is None:
+                continue
+            if s.SensorType == 'Temperature' and 'cpu' in s.Name.lower() and result['temp'] is None:
+                result['temp'] = round(val, 1)
+            elif s.SensorType == 'Voltage' and 'vcore' in s.Name.lower() and result['volt'] is None:
+                result['volt'] = round(val, 3)
+            elif s.SensorType == 'Fan':
+                result['fans'].append({'name': s.Name, 'rpm': round(val)})
+        result['available'] = True
+    except:
+        pass
+    return result
+
+def _lhm_is_running():
+    """Return True if LibreHardwareMonitor WMI namespace is reachable."""
+    if sys.platform != 'win32':
+        return False
+    try:
+        import wmi as _w
+        _w.WMI(namespace='root/LibreHardwareMonitor')
+        return True
+    except:
+        return False
+
+_LHM_ALLOWED_PREFIX = 'https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/'
+
+def _validate_lhm_url(url):
+    """Only allow downloads from the official LibreHardwareMonitor releases page."""
+    return (isinstance(url, str)
+            and url.startswith(_LHM_ALLOWED_PREFIX)
+            and url.endswith('.zip'))
+
+def _count_na_sensors():
+    """Count how many primary sensors are currently N/A."""
+    count = 0
+    with _hw_lock:
+        if _hw_cache['cpu_temp'] is None: count += 1
+        if _hw_cache['cpu_volt'] is None: count += 1
+        if not _hw_cache['lhm_fans']:     count += 1
+    return count
+
 _active_fan_preset = _load_active_preset()
 
 # ── Benchmark state ────────────────────────────────────────────────────────────
@@ -205,7 +266,8 @@ history  = {k: deque(maxlen=MAX_HIST) for k in
 _sustained  = {'cpu': deque(maxlen=12), 'gpu': deque(maxlen=12)}
 
 # Unified hardware cache — one structure for all platforms
-_hw_cache   = {'cpu_temp': None, 'cpu_volt': None, 'ts': 0, 'ttl': 10}
+_hw_cache   = {'cpu_temp': None, 'cpu_volt': None, 'ts': 0, 'ttl': 10,
+               'lhm_running': False, 'lhm_fans': []}
 
 _gpu_cache      = dict(usage=None, temp=None, name='N/A', vram_used=None, vram_total=None)
 _gpu_lock       = threading.Lock()
@@ -395,9 +457,16 @@ def _hw_scheduler():
     """Background: refresh HW cache every ttl seconds."""
     while True:
         try:
-            temp, volt = _hw_read_cpu()
+            temp, volt = _hw_read_cpu()          # generic WMI + psutil fallback
+            lhm = _lhm_read_sensors()            # LHM WMI — higher quality if running
+            if lhm['temp'] is not None: temp = lhm['temp']
+            if lhm['volt'] is not None: volt = lhm['volt']
             with _hw_lock:
-                _hw_cache.update(cpu_temp=temp, cpu_volt=volt, ts=time.time())
+                _hw_cache.update(
+                    cpu_temp=temp, cpu_volt=volt, ts=time.time(),
+                    lhm_running=lhm['available'],
+                    lhm_fans=lhm['fans']
+                )
         except Exception as e:
             _log_err('hw_scheduler', e)
         time.sleep(_hw_cache['ttl'])
@@ -816,7 +885,11 @@ def _live_stats():
                     ('net_down',net['download_kbps']),('net_up',net['upload_kbps'])):
             history[k].append(v)
         hist = {k: list(v) for k,v in history.items()}
-    return dict(cpu=cpu, ram=r, gpu=gpu, network=net, warnings=warns, history=hist, timestamp=ts)
+    with _hw_lock:
+        lhm_running = _hw_cache['lhm_running']
+        fan_rpms    = list(_hw_cache['lhm_fans'])
+    return dict(cpu=cpu, ram=r, gpu=gpu, network=net, warnings=warns, history=hist,
+                timestamp=ts, lhm_running=lhm_running, fan_rpms=fan_rpms)
 
 # ── Log flush ─────────────────────────────────────────────────────────────────
 def _log_stats(s):
@@ -1039,6 +1112,10 @@ def api_feedback_queue():
 @app.route('/api/shutdown', methods=['POST'])
 def api_shutdown():
     _flush_log(); _flush_errs()
+    global _lhm_proc
+    if _lhm_proc is not None:
+        try: _lhm_proc.terminate()
+        except: pass
     fn = request.environ.get('werkzeug.server.shutdown')
     if fn: fn()
     else: threading.Thread(target=lambda: (time.sleep(0.5), os._exit(0)), daemon=True).start()
@@ -1440,6 +1517,90 @@ def api_update_install():
         _log_err('api_update_install', e)
         return jsonify(error=str(e)), 500
 
+@app.route('/api/lhm/status')
+def api_lhm_status():
+    prefs = {}
+    if os.path.exists(PREF_FILE):
+        try:
+            with open(PREF_FILE, encoding='utf-8') as f: prefs = json.load(f)
+        except: pass
+    return jsonify(
+        lhm_running   = _lhm_is_running(),
+        na_count      = _count_na_sensors(),
+        lhm_prompted  = prefs.get('lhm_prompted', False),
+        lhm_installed = prefs.get('lhm_installed', False),
+        lhm_path      = prefs.get('lhm_path', ''),
+    )
+
+def _download_lhm():
+    """Background thread: download LHM zip, extract to LHM_DIR, launch minimized."""
+    global _lhm_proc
+    import urllib.request as _ur, zipfile as _zf
+    try:
+        os.makedirs(LHM_DIR, exist_ok=True)
+        zip_dest = os.path.join(LHM_DIR, 'LibreHardwareMonitor.zip')
+        with _lhm_lock: _lhm_state.update(state='downloading', progress=0, error=None)
+        req = _ur.urlopen(LHM_URL, timeout=120)
+        total = int(req.headers.get('Content-Length') or 0)
+        downloaded = 0
+        with open(zip_dest, 'wb') as f:
+            while True:
+                buf = req.read(65536)
+                if not buf: break
+                f.write(buf)
+                downloaded += len(buf)
+                if total > 0:
+                    with _lhm_lock:
+                        _lhm_state['progress'] = min(99, int(downloaded * 100 / total))
+        with _lhm_lock: _lhm_state.update(state='extracting', progress=99)
+        with _zf.ZipFile(zip_dest, 'r') as z:
+            z.extractall(LHM_DIR)
+        lhm_exe = os.path.join(LHM_DIR, 'LibreHardwareMonitor.exe')
+        if not os.path.exists(lhm_exe):
+            # find it in a subdirectory
+            for root, _, files in os.walk(LHM_DIR):
+                if 'LibreHardwareMonitor.exe' in files:
+                    lhm_exe = os.path.join(root, 'LibreHardwareMonitor.exe')
+                    break
+        flags = dict(creationflags=subprocess.CREATE_NO_WINDOW) if sys.platform == 'win32' else {}
+        proc = subprocess.Popen([lhm_exe, '/minimized'], close_fds=True, **flags)
+        _lhm_proc = proc
+        # Save installed path to preferences
+        prefs = {}
+        if os.path.exists(PREF_FILE):
+            try:
+                with open(PREF_FILE, encoding='utf-8') as f: prefs = json.load(f)
+            except: pass
+        prefs['lhm_installed'] = True
+        prefs['lhm_path'] = lhm_exe
+        os.makedirs(PROF_DIR, exist_ok=True)
+        with open(PREF_FILE, 'w', encoding='utf-8') as f: json.dump(prefs, f)
+        with _lhm_lock: _lhm_state.update(state='running', progress=100, error=None)
+        _eve_speak_async("LHM is live! Sensors are now active. Looking great!")
+    except Exception as e:
+        with _lhm_lock: _lhm_state.update(state='error', error=str(e)[:200])
+        _log_err('download_lhm', e)
+
+@app.route('/api/lhm/install', methods=['POST'])
+def api_lhm_install():
+    if sys.platform != 'win32':
+        return jsonify(error='LHM is Windows-only'), 400
+    if not _validate_lhm_url(LHM_URL):
+        return jsonify(error='Invalid LHM URL'), 400
+    with _lhm_lock:
+        if _lhm_state['state'] in ('downloading', 'extracting'):
+            return jsonify(error='Install already in progress'), 409
+        _lhm_state.update(state='downloading', progress=0, error=None)
+    threading.Thread(target=_download_lhm, daemon=True).start()
+    return jsonify(status='started')
+
+@app.route('/api/lhm/check', methods=['POST'])
+def api_lhm_check():
+    lhm = _lhm_read_sensors()
+    with _hw_lock:
+        _hw_cache.update(lhm_running=lhm['available'], lhm_fans=lhm['fans'])
+    return jsonify(lhm_running=lhm['available'], na_count=_count_na_sensors())
+
 @app.route('/api/preferences', methods=['GET', 'POST'])
 def api_preferences():
     """Read/write user preferences (temp_unit, dark_mode) to profiles/preferences.json."""
@@ -1466,6 +1627,14 @@ def api_preferences():
     if 'last_seen_whats_new' in d and isinstance(d['last_seen_whats_new'], str):
         if re.match(r'^\d+\.\d+\.\d+$', d['last_seen_whats_new']) and len(d['last_seen_whats_new']) <= 20:
             prefs['last_seen_whats_new'] = d['last_seen_whats_new']
+    if 'lhm_prompted' in d and isinstance(d['lhm_prompted'], bool):
+        prefs['lhm_prompted'] = d['lhm_prompted']
+    if 'lhm_installed' in d and isinstance(d['lhm_installed'], bool):
+        prefs['lhm_installed'] = d['lhm_installed']
+    if 'lhm_path' in d and isinstance(d['lhm_path'], str):
+        # Security: path must live under LHM_DIR
+        if os.path.normpath(d['lhm_path']).startswith(os.path.normpath(LHM_DIR)):
+            prefs['lhm_path'] = d['lhm_path']
     try:
         os.makedirs(PROF_DIR, exist_ok=True)
         with open(PREF_FILE, 'w', encoding='utf-8') as f:

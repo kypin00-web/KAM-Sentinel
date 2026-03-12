@@ -1,9 +1,9 @@
 {
-  "version": "1.5.30",
-  "build": 37,
-  "date": "2026-03-03",
+  "version": "1.5.33",
+  "build": 39,
+  "date": "2026-03-11",
   "channel": "stable",
-  "changelog": "v1.5.30: Wes Mode removed, clean production build",
+  "changelog": "v1.5.32: Auto-updater kills running app before install, 2s exit delay, temp cleanup",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -13,9 +13,9 @@
   },
   "minimum_version": "1.0.0",
   "changes": [
-    "CLEAN: Wes Mode / hearing calibration extracted to standalone Hearing Reborn bundle",
-    "CLEAN: TEST MODE button removed from production header",
-    "CLEAN: Eve voice and 404-alert popup fully intact",
-    "NEW: What's New v1.5.30 step added"
+    "v1.5.33: Phase 2.5 \u2014 LibreHardwareMonitor integration (auto-install, Eve prompt, sensor status dot)",
+    "FIX: Installer kills running KAM Sentinel processes before overwriting the exe",
+    "FIX: /api/update/install waits 2s before os._exit(0) so installer fully starts",
+    "FIX: Installer purges PyInstaller _MEI temp folders after install completes"
   ]
 }

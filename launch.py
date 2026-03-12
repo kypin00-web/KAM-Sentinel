@@ -147,6 +147,43 @@ def _check_required_files():
     sys.exit(1)
 
 
+def _lhm_autostart():
+    """Silently relaunch LHM if Eve installed it previously and it's not running."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        import json, subprocess
+        pref_path = os.path.join(
+            os.environ.get('APPDATA', os.path.expanduser('~')),
+            'KAM Sentinel', 'profiles', 'preferences.json'
+        )
+        if not os.path.exists(pref_path):
+            return None
+        with open(pref_path, encoding='utf-8') as f:
+            prefs = json.load(f)
+        if not prefs.get('lhm_installed') or not prefs.get('lhm_path'):
+            return None
+        lhm_exe = prefs['lhm_path']
+        if not os.path.exists(lhm_exe):
+            return None
+        try:                          # Already running? Don't launch a second copy.
+            import wmi as _wm
+            _wm.WMI(namespace='root/LibreHardwareMonitor')
+            return None
+        except:
+            pass
+        proc = subprocess.Popen([lhm_exe, '/minimized'],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                close_fds=True)
+        try:
+            import server as _srv
+            _srv._lhm_proc = proc
+        except: pass
+        return proc
+    except Exception:
+        pass
+    return None
+
 def open_browser(port=5000):
     time.sleep(2.5)
     webbrowser.open(f'http://localhost:{port}')
@@ -163,6 +200,10 @@ def watch_for_shutdown(port=5000):
         except Exception:
             consecutive_failures += 1
             if consecutive_failures >= 5:  # 5 failures = 15s of no response
+                try:
+                    from server import _lhm_proc as _lp
+                    if _lp is not None: _lp.terminate()
+                except: pass
                 os._exit(0)
         time.sleep(3)
 
@@ -186,6 +227,9 @@ if __name__ == '__main__':
 
     # Verify all required bundled files are accessible before importing Flask
     _check_required_files()
+
+    # Silently relaunch LHM if Eve installed it previously
+    _lhm_autostart()
 
     # Open browser after short delay
     threading.Thread(target=open_browser, args=(port,), daemon=True).start()

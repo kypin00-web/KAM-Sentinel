@@ -319,6 +319,74 @@ body.kam-dark-overlay {
 #eve-dismiss-btn:hover { border-color:var(--text); color:var(--text); }
 #eve-status { font-size:.75rem; margin-top:8px; color:#ff6b9d; min-height:1em; }
 
+/* ── EVE LHM POPUP ───────────────────────────────────────────────────────── */
+#eve-lhm-popup {
+  display:none; position:fixed; bottom:28px; right:28px; z-index:99997;
+  align-items:flex-end; gap:10px; pointer-events:none;
+}
+#eve-lhm-popup.visible {
+  display:flex; pointer-events:all;
+  animation: eveSlideIn .4s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+#eve-lhm-bubble {
+  background: linear-gradient(135deg,rgba(10,14,23,.97),rgba(15,21,32,.97));
+  border:1px solid rgba(255,107,157,.5); border-radius:12px 12px 2px 12px;
+  padding:14px 16px; max-width:300px;
+  box-shadow: 0 0 32px rgba(255,107,157,.18), 0 8px 32px rgba(0,0,0,.7);
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+}
+#eve-lhm-name {
+  font-family:'Share Tech Mono',monospace; font-size:.58rem; letter-spacing:2px;
+  color:#ff6b9d; margin-bottom:8px;
+}
+#eve-lhm-msg { font-size:.85rem; color:var(--white); line-height:1.5; margin-bottom:12px; }
+#eve-lhm-actions { display:flex; gap:8px; flex-wrap:wrap; }
+#eve-lhm-install-btn {
+  background:linear-gradient(135deg,#ff6b9d,#ff4d7e); border:none; color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:.65rem; font-weight:bold;
+  padding:6px 14px; border-radius:4px; cursor:pointer; transition:opacity .2s;
+}
+#eve-lhm-install-btn:hover { opacity:.85; }
+#eve-lhm-install-btn:disabled { opacity:.5; cursor:not-allowed; }
+#eve-lhm-diy-btn, #eve-lhm-dismiss-btn {
+  background:none; border:1px solid rgba(255,255,255,.15); color:var(--dim2);
+  font-family:'Share Tech Mono',monospace; font-size:.65rem;
+  padding:6px 12px; border-radius:4px; cursor:pointer; transition:all .2s;
+}
+#eve-lhm-diy-btn:hover, #eve-lhm-dismiss-btn:hover { border-color:var(--text); color:var(--text); }
+#eve-lhm-progress { margin-top:8px; height:4px; background:rgba(255,255,255,.1); border-radius:2px; display:none; }
+#eve-lhm-progress-bar { height:100%; background:#ff6b9d; border-radius:2px; width:0; transition:width .3s; }
+#eve-lhm-status { font-size:.75rem; margin-top:8px; color:#ff6b9d; min-height:1em; }
+
+/* ── LHM DIY CARD ─────────────────────────────────────────────────────────── */
+#lhm-diy-card { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+  z-index:99999; align-items:center; justify-content:center; -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px); }
+#lhm-diy-card.open { display:flex; }
+#lhm-diy-inner {
+  background:var(--bg2); border:1px solid var(--border); border-radius:4px;
+  padding:28px 32px; max-width:440px; width:90%;
+  box-shadow:0 0 40px rgba(0,212,255,.12), 0 16px 48px rgba(0,0,0,.8);
+}
+.lhm-diy-title {
+  font-family:'Share Tech Mono',monospace; font-size:.7rem; letter-spacing:3px;
+  color:var(--cyan); margin-bottom:16px;
+}
+.lhm-diy-step { font-size:.83rem; color:var(--text); margin-bottom:12px; line-height:1.6; }
+.lhm-diy-step a { color:var(--cyan); text-decoration:none; }
+.lhm-diy-step a:hover { text-decoration:underline; }
+#lhm-diy-done-btn {
+  background:linear-gradient(135deg,#00d4ff,#0099cc); border:none; color:#000;
+  font-family:'Share Tech Mono',monospace; font-size:.65rem; font-weight:bold;
+  padding:8px 18px; border-radius:4px; cursor:pointer; margin-top:8px;
+  transition:opacity .2s;
+}
+#lhm-diy-done-btn:hover { opacity:.85; }
+#lhm-diy-later { font-size:.72rem; color:var(--dim); cursor:pointer; margin-top:10px;
+  display:block; text-decoration:underline; }
+#lhm-diy-later:hover { color:var(--text); }
+#lhm-diy-result { font-size:.8rem; margin-top:10px; min-height:1.2em; }
+
 /* ── LAYOUT ──────────────────────────────────────────────────────────────── */
 main { padding:20px 24px; max-width:1600px; margin:0 auto; }
 .section-label {
@@ -761,6 +829,10 @@ footer {
         <div class="card-detail-row"><span class="cd-k">Voltage</span><span class="cd-v" id="cpu-volt">-- V</span><button class="diag-btn" id="diag-cpu-volt" onclick="showDiag('wmi')" title="Diagnostic info" style="display:none">⚠</button></div>
         <div class="card-detail-row"><span class="cd-k">Clock</span><span class="cd-v" id="cpu-freq">-- GHz</span></div>
         <div class="card-detail-row"><span class="cd-k">Cores / Threads</span><span class="cd-v" id="cpu-cores">--</span></div>
+        <div class="card-detail-row" id="lhm-status-row" style="display:none">
+          <span class="cd-k">Sensors</span>
+          <span id="lhm-status-dot" style="font-size:.72rem"></span>
+        </div>
       </div>
       <div class="bar"><div class="bar-fill" id="cpu-bar" style="width:0%"></div></div>
     </div>
@@ -1257,6 +1329,17 @@ async function fetchStats() {
       chartTemp.data.datasets[1].data         = h.gpu_temp.map(v => v !== null ? toDisplayTemp(v) : null);
       chartUsage.update('none');
       chartTemp.update('none');
+    }
+
+    // LHM sensor status dot (Windows only — hidden on other platforms)
+    if (d.lhm_running !== undefined) {
+      const dotRow = document.getElementById('lhm-status-row');
+      const dot    = document.getElementById('lhm-status-dot');
+      if (dotRow) dotRow.style.display = '';
+      if (dot) {
+        dot.textContent  = d.lhm_running ? '\uD83D\uDFE2 Enhanced sensors active' : '\uD83D\uDFE1 Basic sensors only';
+        dot.style.color  = d.lhm_running ? '#00ff88' : '#ffd700';
+      }
     }
 
     // Warnings
@@ -1851,6 +1934,8 @@ async function init() {
   } catch(_) {}
   // Load diagnostics for N/A indicators
   await loadDiagnostics();
+  // Check LHM sensor status after a delay — prompt once if sensors are N/A
+  eveLhmCheckOnLoad();
   // Check for updates on load, then every 4 hours
   setTimeout(checkForUpdate, 3000);
   setInterval(checkForUpdate, 4 * 60 * 60 * 1000);
@@ -2084,7 +2169,7 @@ function toggleBenchHistory() {
 // ── What's New Walkthrough ────────────────────────────────────────────────
 (function() {
   const WN_VER_KEY = 'kam_whats_new_seen';
-  const WN_VER     = '1.5.32';
+  const WN_VER     = '1.5.33';
   let wnStep = 0, _wnSteps, wnDots, wnNext, wnProgress;
 
   // Compare semver strings: returns true if a > b
@@ -2217,6 +2302,131 @@ function eveVoiceToggle() {
     _eveVoiceUpdateBtn();
   }).catch(() => { _eveVoiceUpdateBtn(); }); // default ON on error
 })();
+
+// ── Eve LHM Sensor Prompt ─────────────────────────────────────────────────
+let _lhmInstallPolling = false;
+
+async function eveLhmCheckOnLoad() {
+  await new Promise(r => setTimeout(r, 5000)); // wait 5s for data to settle
+  try {
+    const r = await fetch('/api/lhm/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.lhm_running || d.lhm_prompted || d.na_count < 2) return;
+    eveLhmPromptShow();
+  } catch(_) {}
+}
+
+function eveLhmPromptShow() {
+  const pop = document.getElementById('eve-lhm-popup');
+  if (!pop) return;
+  pop.classList.add('visible');
+}
+
+function eveLhmDismiss() {
+  const pop = document.getElementById('eve-lhm-popup');
+  if (pop) pop.classList.remove('visible');
+  fetch('/api/preferences', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({lhm_prompted: true}) }).catch(() => {});
+}
+
+async function eveLhmInstall() {
+  const installBtn = document.getElementById('eve-lhm-install-btn');
+  const diyBtn     = document.getElementById('eve-lhm-diy-btn');
+  const dismissBtn = document.getElementById('eve-lhm-dismiss-btn');
+  const statusEl   = document.getElementById('eve-lhm-status');
+  const progWrap   = document.getElementById('eve-lhm-progress');
+  const progBar    = document.getElementById('eve-lhm-progress-bar');
+  if (installBtn) { installBtn.disabled = true; installBtn.textContent = 'Downloading...'; }
+  if (diyBtn)     diyBtn.disabled = true;
+  if (dismissBtn) dismissBtn.disabled = true;
+  if (progWrap)   progWrap.style.display = 'block';
+
+  try {
+    const r = await fetch('/api/lhm/install', { method:'POST' });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({error:'Install failed'}));
+      if (statusEl) statusEl.textContent = e.error || 'Install failed';
+      if (installBtn) { installBtn.disabled = false; installBtn.textContent = 'Let Eve handle it! \uD83D\uDC95'; }
+      if (diyBtn)     diyBtn.disabled = false;
+      if (dismissBtn) dismissBtn.disabled = false;
+      return;
+    }
+  } catch(_) {
+    if (statusEl) statusEl.textContent = 'Network error — try the DIY route';
+    if (installBtn) { installBtn.disabled = false; installBtn.textContent = 'Let Eve handle it! \uD83D\uDC95'; }
+    if (diyBtn)     diyBtn.disabled = false;
+    if (dismissBtn) dismissBtn.disabled = false;
+    return;
+  }
+
+  // Poll install state
+  _lhmInstallPolling = true;
+  let ticks = 0;
+  const _poll = async () => {
+    if (!_lhmInstallPolling) return;
+    try {
+      const sr = await fetch('/api/lhm/status');
+      const sd = await sr.json();
+      if (progBar) progBar.style.width = (sd.progress || 0) + '%';
+      if (sd.state === 'running' || sd.lhm_running) {
+        _lhmInstallPolling = false;
+        if (statusEl) statusEl.textContent = '\u2705 Sensors active!';
+        if (progBar)  progBar.style.width = '100%';
+        if (installBtn) { installBtn.disabled = false; installBtn.textContent = 'Done \u2705'; }
+        setTimeout(() => eveLhmDismiss(), 2500);
+        return;
+      }
+      if (sd.state === 'error') {
+        _lhmInstallPolling = false;
+        if (statusEl) statusEl.textContent = '\u274C Error: ' + (sd.error || 'install failed');
+        if (installBtn) { installBtn.disabled = false; installBtn.textContent = 'Retry?'; }
+        if (diyBtn)     diyBtn.disabled = false;
+        if (dismissBtn) dismissBtn.disabled = false;
+        return;
+      }
+    } catch(_) {}
+    ticks++;
+    if (ticks < 180) setTimeout(_poll, 1000);  // give up after 3 min
+  };
+  setTimeout(_poll, 1000);
+}
+
+function eveLhmDiy() {
+  eveLhmDismiss();
+  const card = document.getElementById('lhm-diy-card');
+  if (card) card.classList.add('open');
+}
+
+function eveLhmDiyClose() {
+  const card = document.getElementById('lhm-diy-card');
+  if (card) card.classList.remove('open');
+}
+
+async function eveLhmCheck() {
+  const resultEl = document.getElementById('lhm-diy-result');
+  const btn      = document.getElementById('lhm-diy-done-btn');
+  if (btn) btn.disabled = true;
+  if (resultEl) resultEl.textContent = 'Checking...';
+  try {
+    const r  = await fetch('/api/lhm/check', { method:'POST' });
+    const d  = await r.json();
+    if (d.lhm_running) {
+      if (resultEl) resultEl.textContent = '\u2705 Sensors are live! You can close this.';
+      // update status dot immediately
+      const dotRow = document.getElementById('lhm-status-row');
+      const dot    = document.getElementById('lhm-status-dot');
+      if (dotRow) dotRow.style.display = '';
+      if (dot)    { dot.textContent = '\uD83D\uDFE2 Enhanced sensors active'; dot.style.color = '#00ff88'; }
+      setTimeout(() => eveLhmDiyClose(), 2000);
+    } else {
+      if (resultEl) resultEl.textContent = '\u26A0\uFE0F Sensors still offline — is LHM running as Administrator?';
+    }
+  } catch(_) {
+    if (resultEl) resultEl.textContent = 'Check failed — server unreachable';
+  }
+  if (btn) btn.disabled = false;
+}
 
 // ── Eve Santos — 404 Watchdog ─────────────────────────────────────────────
 let _eveCooldown = 0;
@@ -2424,6 +2634,41 @@ async function eveFix() {
 <!-- Eve Santos standalone bundle → C:\Users\kypin\Desktop\Eve_Santos\ -->
 
 <!-- ── EVE SANTOS — 404 POPUP ─────────────────────────────────────────── -->
+<div id="eve-lhm-popup" role="alertdialog" aria-label="Eve Santos sensor setup">
+  <div id="eve-avatar" aria-hidden="true">
+    <svg width="42" height="46" viewBox="0 0 42 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M21 2 L39 9.5 L39 26 C39 36 30 43 21 46 C12 43 3 36 3 26 L3 9.5 Z"
+            fill="rgba(255,107,157,.15)" stroke="#ff6b9d" stroke-width="1.5"/>
+      <text x="21" y="31" text-anchor="middle"
+            font-family="'Share Tech Mono',monospace"
+            font-size="17" font-weight="bold" fill="#ff6b9d">E</text>
+    </svg>
+  </div>
+  <div id="eve-lhm-bubble">
+    <div id="eve-lhm-name">E.V.E &#8212; Eve Santos</div>
+    <div id="eve-lhm-msg">Ay, I'm seeing N/A on your sensors! LibreHardwareMonitor fixes this &#x1F495; — want me to grab it for you?</div>
+    <div id="eve-lhm-actions">
+      <button id="eve-lhm-install-btn" onclick="eveLhmInstall()">Let Eve handle it! &#x1F495;</button>
+      <button id="eve-lhm-diy-btn" onclick="eveLhmDiy()">I'll do it myself</button>
+      <button id="eve-lhm-dismiss-btn" onclick="eveLhmDismiss()">Later</button>
+    </div>
+    <div id="eve-lhm-progress"><div id="eve-lhm-progress-bar"></div></div>
+    <div id="eve-lhm-status"></div>
+  </div>
+</div>
+
+<div id="lhm-diy-card" role="dialog" aria-label="LHM DIY instructions">
+  <div id="lhm-diy-inner">
+    <div class="lhm-diy-title">&#x1F6E0; ENABLE SENSORS — DIY ROUTE</div>
+    <div class="lhm-diy-step"><strong>Step 1:</strong> <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest" target="_blank">Download LibreHardwareMonitor</a> — it's free &amp; open source.</div>
+    <div class="lhm-diy-step"><strong>Step 2:</strong> Extract the zip, right-click <code>LibreHardwareMonitor.exe</code> → <em>Run as Administrator</em>. It can stay minimised in the tray.</div>
+    <div class="lhm-diy-step"><strong>Step 3:</strong> Come back here and click the button below — I'll confirm sensors are live!</div>
+    <button id="lhm-diy-done-btn" onclick="eveLhmCheck()">I'm done! Check sensors &#x2705;</button>
+    <a id="lhm-diy-later" onclick="eveLhmDiyClose()">Remind me later</a>
+    <div id="lhm-diy-result"></div>
+  </div>
+</div>
+
 <div id="eve-popup" role="alertdialog" aria-label="Eve Santos error alert">
   <div id="eve-avatar">
     <svg width="42" height="46" viewBox="0 0 42 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

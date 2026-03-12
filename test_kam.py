@@ -1021,6 +1021,22 @@ if os.path.exists(_nsi_path):
             ok("installer.nsi: Unblock uses LiteralPath $INSTDIR -- space-safe, respects custom install path")
         else:
             fail("installer.nsi: Unblock not using LiteralPath $INSTDIR -- may fail on paths with spaces")
+
+        if 'taskkill' in _nsi_src and 'KAM_Sentinel_Windows.exe' in _nsi_src:
+            ok("installer.nsi: taskkill before File extraction -- running app killed before overwrite")
+        else:
+            fail("installer.nsi: taskkill missing -- installer will fail if app is running")
+
+        if '$LOCALAPPDATA' in _nsi_src:
+            ok("installer.nsi: uses $LOCALAPPDATA install dir -- writable without admin rights")
+        else:
+            fail("installer.nsi: missing $LOCALAPPDATA -- install dir may require admin")
+
+        if '_MEI' in _nsi_src and ('RMDir' in _nsi_src or 'rd /s /q' in _nsi_src):
+            ok("installer.nsi: PyInstaller _MEI temp cleanup present")
+        else:
+            fail("installer.nsi: _MEI cleanup missing -- temp folders accumulate after updates")
+
     except Exception as _e:
         fail(f"installer.nsi read error: {_e}")
 else:
@@ -1389,11 +1405,191 @@ if _dash16_src:
     else:
         fail("dashboard.html: What's New null guards missing -- wnBuild() can throw TypeError")
 
-    if "WN_VER     = '1.5.32'" in _dash16_src or "WN_VER = '1.5.32'" in _dash16_src:
-        ok("dashboard.html: WN_VER updated to 1.5.32 -- users see latest What's New")
+    if "WN_VER     = '1.5.33'" in _dash16_src or "WN_VER = '1.5.33'" in _dash16_src:
+        ok("dashboard.html: WN_VER updated to 1.5.33 -- users see latest What's New")
     else:
         fail("dashboard.html: WN_VER not updated -- What's New shows stale version content")
 
+
+# =============================================================================
+# Section 17: LHM Integration & Version Integrity
+# =============================================================================
+import re as _re17
+section("17. LHM Integration & Version Integrity")
+
+_ROOT17 = os.path.dirname(os.path.abspath(__file__))
+
+# ── server.py checks ──────────────────────────────────────────────────────────
+_srv17_src = ''
+try:
+    with open(os.path.join(_ROOT17, 'server.py'), encoding='utf-8') as _f:
+        _srv17_src = _f.read()
+except Exception as _e17:
+    fail(f"Could not read server.py: {_e17}")
+
+if _srv17_src:
+    if 'LHM_DIR' in _srv17_src:
+        ok("server.py: LHM_DIR constant defined")
+    else:
+        fail("server.py: LHM_DIR constant missing -- LHM install path not set")
+
+    if 'LHM_URL' in _srv17_src:
+        ok("server.py: LHM_URL constant defined")
+    else:
+        fail("server.py: LHM_URL constant missing -- can't download LHM")
+
+    if 'LibreHardwareMonitor/LibreHardwareMonitor/' in _srv17_src:
+        ok("server.py: LHM_URL prefix matches official GitHub repo -- security check passed")
+    else:
+        fail("server.py: LHM_URL prefix wrong -- URL may not be from official LHM repo")
+
+    if '_validate_lhm_url' in _srv17_src:
+        ok("server.py: _validate_lhm_url() present -- LHM download URL whitelist enforced")
+    else:
+        fail("server.py: _validate_lhm_url() missing -- arbitrary zip URLs could be downloaded")
+
+    if '_lhm_read_sensors' in _srv17_src:
+        ok("server.py: _lhm_read_sensors() present -- LHM WMI sensor reader defined")
+    else:
+        fail("server.py: _lhm_read_sensors() missing -- LHM sensors won't be read")
+
+    if '_lhm_is_running' in _srv17_src:
+        ok("server.py: _lhm_is_running() present -- WMI namespace availability check defined")
+    else:
+        fail("server.py: _lhm_is_running() missing -- status endpoint can't detect LHM")
+
+    if '_count_na_sensors' in _srv17_src:
+        ok("server.py: _count_na_sensors() present -- N/A sensor count for popup trigger")
+    else:
+        fail("server.py: _count_na_sensors() missing -- popup trigger has no N/A count")
+
+    if "'/api/lhm/status'" in _srv17_src:
+        ok("server.py: /api/lhm/status endpoint registered")
+    else:
+        fail("server.py: /api/lhm/status missing -- LHM status unavailable to frontend")
+
+    if "'/api/lhm/install'" in _srv17_src:
+        ok("server.py: /api/lhm/install endpoint registered -- one-click LHM install wired")
+    else:
+        fail("server.py: /api/lhm/install missing -- Eve's install button has no backend")
+
+    if "'/api/lhm/check'" in _srv17_src:
+        ok("server.py: /api/lhm/check endpoint registered -- DIY verification wired")
+    else:
+        fail("server.py: /api/lhm/check missing -- 'I'm done!' button has no backend")
+
+    if '_lhm_proc' in _srv17_src:
+        ok("server.py: _lhm_proc module variable present -- LHM process handle tracked")
+    else:
+        fail("server.py: _lhm_proc missing -- can't terminate LHM on shutdown")
+
+    if '_lhm_proc.terminate()' in _srv17_src or '_lhm_proc is not None' in _srv17_src:
+        ok("server.py: api_shutdown() terminates _lhm_proc -- clean LHM shutdown on exit")
+    else:
+        fail("server.py: api_shutdown() missing _lhm_proc cleanup -- LHM left running after exit")
+
+# ── /api/stats returns lhm_running ────────────────────────────────────────────
+if _srv17_src and 'lhm_running' in _srv17_src:
+    ok("server.py: lhm_running returned in _live_stats() -- /api/stats includes LHM status")
+else:
+    fail("server.py: lhm_running missing from _live_stats() -- frontend can't update status dot")
+
+# ── launch.py checks ──────────────────────────────────────────────────────────
+_launch17_src = ''
+try:
+    with open(os.path.join(_ROOT17, 'launch.py'), encoding='utf-8') as _f:
+        _launch17_src = _f.read()
+except Exception as _e17l:
+    fail(f"Could not read launch.py: {_e17l}")
+
+if _launch17_src:
+    if '_lhm_autostart' in _launch17_src:
+        ok("launch.py: _lhm_autostart() present -- LHM auto-relaunched on startup")
+    else:
+        fail("launch.py: _lhm_autostart() missing -- LHM won't auto-start on next launch")
+
+    if 'CREATE_NO_WINDOW' in _launch17_src:
+        ok("launch.py: LHM autostart uses CREATE_NO_WINDOW -- silent background launch")
+    else:
+        fail("launch.py: CREATE_NO_WINDOW missing from LHM launch -- CMD window may flash")
+
+    if '_lhm_proc' in _launch17_src and ('terminate' in _launch17_src or 'os._exit' in _launch17_src):
+        ok("launch.py: watch_for_shutdown() terminates _lhm_proc on exit -- clean shutdown")
+    else:
+        fail("launch.py: _lhm_proc cleanup missing from watch_for_shutdown() -- LHM left running")
+
+# ── dashboard.html checks ─────────────────────────────────────────────────────
+_dash17_src = ''
+try:
+    with open(os.path.join(_ROOT17, 'dashboard.html'), encoding='utf-8') as _f:
+        _dash17_src = _f.read()
+except Exception as _e17d:
+    fail(f"Could not read dashboard.html: {_e17d}")
+
+if _dash17_src:
+    if 'eve-lhm-popup' in _dash17_src:
+        ok("dashboard.html: #eve-lhm-popup present -- Eve LHM prompt element exists")
+    else:
+        fail("dashboard.html: #eve-lhm-popup missing -- Eve can't prompt for LHM install")
+
+    if 'eveLhmInstall' in _dash17_src:
+        ok("dashboard.html: eveLhmInstall() function present -- one-click install handler wired")
+    else:
+        fail("dashboard.html: eveLhmInstall() missing -- install button has no handler")
+
+    if 'eveLhmCheck' in _dash17_src:
+        ok("dashboard.html: eveLhmCheck() function present -- DIY verification handler wired")
+    else:
+        fail("dashboard.html: eveLhmCheck() missing -- 'I'm done!' has no handler")
+
+    if 'lhm-status-dot' in _dash17_src:
+        ok("dashboard.html: #lhm-status-dot present -- CPU card shows LHM sensor status")
+    else:
+        fail("dashboard.html: #lhm-status-dot missing -- no sensor status indicator on CPU card")
+
+# ── version.json integrity checks ─────────────────────────────────────────────
+import json as _json17
+_ver17_path = os.path.join(_ROOT17, 'version.json')
+if os.path.exists(_ver17_path):
+    try:
+        with open(_ver17_path, encoding='utf-8') as _f:
+            _vj17 = _json17.load(_f)
+        _req_vj = ('version', 'download', 'changes')
+        _miss_vj = [k for k in _req_vj if k not in _vj17]
+        if not _miss_vj:
+            ok("version.json valid JSON with required fields: version, download, changes")
+        else:
+            fail(f"version.json missing fields: {_miss_vj}")
+    except Exception as _e17v:
+        fail(f"version.json parse error: {_e17v}")
+else:
+    fail("version.json not found")
+
+_docver17_path = os.path.join(_ROOT17, 'docs', 'version.json')
+if os.path.exists(_docver17_path):
+    ok("docs/version.json exists -- GitHub Pages version file present")
+    try:
+        with open(_docver17_path, encoding='utf-8') as _f:
+            _dvj17 = _json17.load(_f)
+        # Extract VER from server.py for comparison
+        _ver_match17 = _re17.search(r"VER\s*=\s*'([\d.]+)'", _srv17_src)
+        _srv_ver17 = _ver_match17.group(1) if _ver_match17 else None
+        if _srv_ver17 and _dvj17.get('version') == _srv_ver17:
+            ok(f"docs/version.json version matches server.py VER ({_srv_ver17}) -- in sync")
+        elif _srv_ver17:
+            fail(f"docs/version.json version ({_dvj17.get('version')}) != server.py VER ({_srv_ver17}) -- out of sync")
+        else:
+            fail("Could not extract VER from server.py for comparison")
+    except Exception as _e17dv:
+        fail(f"docs/version.json parse error: {_e17dv}")
+else:
+    fail("docs/version.json missing -- GitHub Pages version check will fail")
+
+if _srv17_src:
+    if 'Timer(2.0,' in _srv17_src or 'sleep(2.0)' in _srv17_src or '2.0, lambda' in _srv17_src:
+        ok("server.py: /api/update/install uses 2.0s exit timer -- installer has time to start")
+    else:
+        fail("server.py: /api/update/install timer is not 2.0s -- installer may be killed before starting")
 
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
