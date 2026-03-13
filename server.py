@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.7'
+VER               = '1.6.8'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1720,8 +1720,19 @@ def api_update_install():
                 f.write('timeout /t 1 /nobreak >nul\n')
                 f.write('goto _wait\n')
                 f.write(':_install\n')
-                # Run NSIS installer silently — handles everything
+                # Brief pause so Windows fully releases DLL handles from the
+                # exiting process before we delete the _MEI temp folder.
+                # Without this, rd /s /q partially fails on locked DLLs,
+                # leaving a corrupted _MEI folder that the new exe reuses.
+                f.write('timeout /t 3 /nobreak >nul\n')
+                # Purge stale _MEI PyInstaller temp folders now that handles
+                # are released. Must happen BEFORE NSIS (which also does this)
+                # to guarantee a full clean delete, not a partial one.
+                f.write('for /d %%i in ("%LOCALAPPDATA%\\Temp\\_MEI*") do rd /s /q "%%i" 2>nul\n')
+                # Run NSIS installer silently — handles kill, copy, registry
                 f.write(f'start /wait "" "{path}" /S\n')
+                # Give AV/OS a moment after install before the new exe starts
+                f.write('timeout /t 2 /nobreak >nul\n')
                 # Relaunch from install location (existing browser tab reconnects)
                 f.write(f'start "" "{target}"\n')
                 f.write('del "%~f0"\n')

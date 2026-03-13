@@ -146,11 +146,9 @@ Your current version is untouched."
   ; Write the uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  ; ── Clean up PyInstaller _MEI temp folders ─────────────────────────────────
-  ; PyInstaller extracts to %LOCALAPPDATA%\Temp\_MEI<random> each run and
-  ; cannot self-delete the folder while the exe is running. Purge leftovers now
-  ; that the old process is gone.
-  nsExec::ExecToLog 'cmd /C for /d %i in ("$LOCALAPPDATA\Temp\_MEI*") do rd /s /q "%i"'
+  ; Note: _MEI PyInstaller temp folder cleanup is handled by the update bat
+  ; (server.py api_update_install) with a proper delay after process exit,
+  ; which avoids partial deletion due to lingering OS file handle locks.
 
 SectionEnd
 

@@ -1,9 +1,9 @@
 {
-  "version": "1.6.7",
+  "version": "1.6.8",
   "build": 42,
   "date": "2026-03-12",
   "channel": "stable",
-  "changelog": "v1.6.7: LHM shutdown via Task Scheduler \u2014 no more orphaned elevated process",
+  "changelog": "v1.6.8: Fix Python DLL error on update \u2014 _MEI cleanup race condition",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,5 +12,5 @@
     "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
-  "changes": "v1.6.7: LHM now registered as a scheduled task on first elevation. schtasks /run on startup, schtasks /end on shutdown \u2014 both work without UAC. No more LHM left running after KAM exits."
+  "changes": "v1.6.8: Move _MEI temp folder cleanup from NSIS to update bat, after a 3s OS handle-release wait. Prevents partial deletion of PyInstaller temp folder that caused python311.dll load failure on update relaunch."
 }
