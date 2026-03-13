@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.5'
+VER               = '1.6.6'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1730,8 +1730,18 @@ def _download_lhm():
                     lhm_exe = os.path.join(root, 'LibreHardwareMonitor.exe')
                     break
         flags = dict(creationflags=subprocess.CREATE_NO_WINDOW) if sys.platform == 'win32' else {}
-        proc = subprocess.Popen([lhm_exe, '/minimized'], close_fds=True, **flags)
-        _lhm_proc = proc
+        try:
+            proc = subprocess.Popen([lhm_exe, '/minimized'], close_fds=True, **flags)
+            _lhm_proc = proc
+        except OSError as _oe:
+            if getattr(_oe, 'winerror', None) == 740:
+                # LHM manifest requires elevation — request via UAC prompt
+                import ctypes
+                ctypes.windll.shell32.ShellExecuteW(
+                    None, 'runas', lhm_exe, '/minimized', None, 1)
+                # No proc handle from ShellExecute, but LHM will be running after UAC
+            else:
+                raise
         # Save installed path to preferences
         prefs = {}
         if os.path.exists(PREF_FILE):
