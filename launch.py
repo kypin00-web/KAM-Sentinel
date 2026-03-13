@@ -44,7 +44,7 @@ def _write_crash(exc):
             'date':      datetime.datetime.now().isoformat(),
             'error':     type(exc).__name__ + ': ' + str(exc),
             'traceback': traceback.format_exc(),
-            'version':   '1.5.31',
+            'version':   '1.6.5',
             'os':        sys.platform,
             'username':  (os.environ.get('USERNAME') or os.environ.get('USER') or ''),
         }
@@ -227,7 +227,8 @@ def _lhm_autostart():
     return proc
 
 def _kill_existing_server(port):
-    """If port is already bound, kill that process so we don't open a second instance."""
+    """If port is already bound, kill that process. Returns True if something was killed."""
+    killed = False
     try:
         import psutil
         for conn in psutil.net_connections(kind='inet'):
@@ -236,15 +237,18 @@ def _kill_existing_server(port):
                     proc = psutil.Process(conn.pid)
                     proc.terminate()
                     proc.wait(timeout=3)
+                    killed = True
                 except psutil.TimeoutExpired:
                     try:
                         proc.kill()
+                        killed = True
                     except Exception:
                         pass
                 except Exception:
                     pass
     except Exception:
         pass
+    return killed
 
 
 def open_browser(port=5000):
@@ -282,7 +286,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.5.31         ║")
+    print("  ║        KAM SENTINEL  v1.6.4          ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")
@@ -298,8 +302,12 @@ if __name__ == '__main__':
     except Exception:
         pass
 
-    # Open browser after short delay
-    threading.Thread(target=open_browser, args=(port,), daemon=True).start()
+    # Kill any existing server on this port first.
+    # If something was already running (update relaunch), skip opening a new
+    # browser tab — the existing tab will reconnect automatically.
+    _was_running = _kill_existing_server(port)
+    if not _was_running:
+        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
 
     # Watch for shutdown signal
     threading.Thread(target=watch_for_shutdown, args=(port,), daemon=True).start()
@@ -311,7 +319,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, _on_sigint)
 
     try:
-        _kill_existing_server(port)
+        pass  # _kill_existing_server already called above
         from server import app
         print(f"  Open browser -> http://localhost:{port}")
         print("  Press Ctrl+C or close browser tab to stop\n")

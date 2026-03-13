@@ -1681,7 +1681,7 @@ async function checkForUpdate() {
     const rv = await rr.json();
     if (rv.version && _semverGt(rv.version, v.version)) {
       _updNewVersion  = rv.version;
-      _updDownloadUrl = rv.download?.windows_raw || null;
+      _updDownloadUrl = rv.download?.windows || null;
       showUpdateBanner(rv.version);
     }
   } catch(_) { /* network unavailable — silent */ }
@@ -1719,13 +1719,13 @@ async function updateAction() {
   const st  = btn.dataset.state || 'idle';
   if (st === 'ready') {
     // Install: run the downloaded installer, app will restart
-    btn.textContent = 'Launching installer…';
+    btn.textContent = 'Installing…';
     btn.disabled = true;
     try {
       await fetch('/api/update/install', { method: 'POST' });
-      // Installer launched — force a hard reload so Chrome serves fresh files
-      // after the new exe starts (clears any cached dashboard.html)
-      setTimeout(() => { try { location.reload(true); } catch(_) {} }, 2500);
+      // Poll until new server is up, then reload this tab (no second tab needed)
+      btn.textContent = 'Restarting…';
+      _waitForRestart();
     } catch(_) {}
     return;
   }
@@ -1748,6 +1748,18 @@ async function updateAction() {
   } catch(_) {
     _updShowError('Connection error');
   }
+}
+
+async function _waitForRestart() {
+  // Poll /api/version every second for up to 60s — reload when new server responds
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const r = await fetch('/api/version');
+      if (r.ok) { location.reload(true); return; }
+    } catch(_) {}
+  }
+  location.reload(true); // fallback
 }
 
 async function _pollUpdateProgress() {

@@ -1,9 +1,9 @@
 {
-  "version": "1.6.4",
+  "version": "1.6.5",
   "build": 42,
   "date": "2026-03-12",
   "channel": "stable",
-  "changelog": "v1.6.4: Fix WinError 740 crash on LHM autostart, update bat copy verification, NSIS version guard prevents rollback",
+  "changelog": "v1.6.5: Fix update loop \u2014 NSIS silent install replaces fragile bat copy; fix duplicate tab on relaunch",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
@@ -12,5 +12,5 @@
     "install_helper": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/install_helper.bat"
   },
   "minimum_version": "1.0.0",
-  "changes": "v1.6.4: LHM autostart no longer crashes server on WinError 740 (UAC elevation). Update bat now verifies copy succeeded before relaunching. NSIS installer refuses to overwrite a newer installed version."
+  "changes": "v1.6.5: In-app update now uses NSIS silent installer (handles kill/copy/registry). Browser tab auto-reconnects instead of spawning a duplicate. Launch.py skips opening new tab on update relaunch."
 }

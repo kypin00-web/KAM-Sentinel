@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.4'
+VER               = '1.6.5'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -1636,20 +1636,29 @@ def api_update_install():
         return jsonify(error='Installer file missing — re-download'), 404
     try:
         if getattr(sys, 'frozen', False):
-            # Frozen exe: write a helper bat that waits for us to exit (2 s),
-            # then copies the downloaded exe over the installed location and
-            # relaunches from there.  This keeps a single server instance and
-            # ensures the installed exe is actually replaced on disk.
+            # Frozen exe: write a helper bat that polls until the old process
+            # exits, then runs the NSIS installer silently (/S).  NSIS handles
+            # kill → copy → registry → shortcuts.  After it finishes, relaunch
+            # from the install location so the user stays on one tab.
             target = sys.executable  # e.g. %LOCALAPPDATA%\KAM Sentinel\KAM_Sentinel_Windows.exe
+            exe_name = os.path.basename(target)
             bat = os.path.join(os.path.dirname(path), '_kam_update.bat')
             with open(bat, 'w', encoding='utf-8') as f:
                 f.write('@echo off\n')
-                f.write('timeout /t 3 /nobreak >nul\n')
-                f.write(f'copy /Y "{path}" "{target}"\n')
-                f.write('if errorlevel 1 (\n')
-                f.write(f'  echo UPDATE FAILED: copy error >> "%TEMP%\\kam_update_error.log"\n')
-                f.write('  exit /b 1\n')
-                f.write(')\n')
+                f.write('setlocal\n')
+                # Poll until the old exe process is gone (up to 15 s)
+                f.write('set /a _cnt=0\n')
+                f.write(':_wait\n')
+                f.write(f'tasklist /fi "IMAGENAME eq {exe_name}" 2>nul | find /i "{exe_name}" >nul\n')
+                f.write('if errorlevel 1 goto _install\n')
+                f.write('set /a _cnt+=1\n')
+                f.write('if %_cnt% GEQ 15 goto _install\n')
+                f.write('timeout /t 1 /nobreak >nul\n')
+                f.write('goto _wait\n')
+                f.write(':_install\n')
+                # Run NSIS installer silently — handles everything
+                f.write(f'start /wait "" "{path}" /S\n')
+                # Relaunch from install location (existing browser tab reconnects)
                 f.write(f'start "" "{target}"\n')
                 f.write('del "%~f0"\n')
             subprocess.Popen(
