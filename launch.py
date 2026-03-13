@@ -44,7 +44,7 @@ def _write_crash(exc):
             'date':      datetime.datetime.now().isoformat(),
             'error':     type(exc).__name__ + ': ' + str(exc),
             'traceback': traceback.format_exc(),
-            'version':   '1.6.6',
+            'version':   '1.6.7',
             'os':        sys.platform,
             'username':  (os.environ.get('USERNAME') or os.environ.get('USER') or ''),
         }
@@ -205,6 +205,23 @@ def _lhm_autostart():
     if not lhm_exe:
         return None   # Step 3: not installed — Eve prompt handles it
 
+    # Step 2b: if a scheduled task was previously created (elevation flow),
+    # use it — no UAC needed, and shutdown can use schtasks /end.
+    _LHM_TASK = 'KAM Sentinel LHM'
+    try:
+        _tq = subprocess.run(
+            ['schtasks', '/query', '/tn', _LHM_TASK],
+            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if _tq.returncode == 0:
+            subprocess.Popen(
+                ['schtasks', '/run', '/tn', _LHM_TASK],
+                creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True
+            )
+            return None  # task owns the process — no proc handle needed
+    except Exception:
+        pass
+
     # Start LHM minimized to tray, silently.
     # Never elevate — LHM's UAC manifest may request admin, but we launch as
     # a normal user process.  WinError 740 (elevation required) or any other
@@ -271,6 +288,13 @@ def watch_for_shutdown(port=5000):
                     from server import _lhm_proc as _lp
                     if _lp is not None: _lp.terminate()
                 except: pass
+                try:
+                    subprocess.run(
+                        ['schtasks', '/end', '/tn', 'KAM Sentinel LHM'],
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        capture_output=True
+                    )
+                except: pass
                 os._exit(0)
         time.sleep(3)
 
@@ -286,7 +310,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║        KAM SENTINEL  v1.6.6          ║")
+    print("  ║        KAM SENTINEL  v1.6.7          ║")
     print("  ║        Phase 1 — Sentinel Edition    ║")
     print("  ╚══════════════════════════════════════╝")
     print("  Starting server...")

@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.6'
+VER               = '1.6.7'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -167,15 +167,77 @@ USER_PREFS_FILE = os.path.join(CONFIG_DIR, 'user_prefs.json')
 JGM_LOG_DEFAULT = os.path.join(LOG_DIR, 'jgm_killed.jsonl')
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-LHM_DIR  = os.path.join(
+LHM_DIR       = os.path.join(
     os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'KAM Sentinel', 'LHM'
 )
-LHM_URL  = ('https://github.com/LibreHardwareMonitor/LibreHardwareMonitor'
-             '/releases/latest/download/LibreHardwareMonitor.zip')
+LHM_URL       = ('https://github.com/LibreHardwareMonitor/LibreHardwareMonitor'
+                 '/releases/latest/download/LibreHardwareMonitor.zip')
+LHM_TASK_NAME = 'KAM Sentinel LHM'
 
 _lhm_lock  = threading.Lock()
 _lhm_state = {'state': 'idle', 'progress': 0, 'error': None}
 _lhm_proc  = None   # Popen handle if KAM Sentinel launched LHM (None if user-run)
+
+def _lhm_task_exists():
+    """Return True if the KAM Sentinel LHM scheduled task is registered."""
+    if sys.platform != 'win32':
+        return False
+    try:
+        r = subprocess.run(
+            ['schtasks', '/query', '/tn', LHM_TASK_NAME],
+            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+def _lhm_task_create(lhm_exe):
+    """Register a scheduled task for LHM with highest privileges (one-time UAC).
+    Writes a PS1 script to LHM_DIR and runs it elevated via ShellExecuteW.
+    After this, schtasks /run and /end work without elevation.
+    """
+    import ctypes
+    ps_content = (
+        f"$a = New-ScheduledTaskAction -Execute '{lhm_exe}' -Argument '/minimized'\n"
+        f"$s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew\n"
+        f"$p = New-ScheduledTaskPrincipal -RunLevel Highest -LogonType Interactive"
+        f" -UserId $env:USERNAME\n"
+        f"Register-ScheduledTask -TaskName '{LHM_TASK_NAME}'"
+        f" -Action $a -Principal $p -Settings $s -Force\n"
+    )
+    ps_path = os.path.join(LHM_DIR, '_create_lhm_task.ps1')
+    try:
+        os.makedirs(LHM_DIR, exist_ok=True)
+        with open(ps_path, 'w', encoding='utf-8') as f:
+            f.write(ps_content)
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, 'runas', 'powershell.exe',
+            f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{ps_path}"',
+            None, 0  # SW_HIDE — UAC dialog shows, PS console does not
+        )
+        return result > 32
+    except Exception:
+        return False
+
+def _lhm_task_run():
+    """Start LHM via scheduled task — no elevation needed after task is created."""
+    try:
+        subprocess.Popen(
+            ['schtasks', '/run', '/tn', LHM_TASK_NAME],
+            creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True
+        )
+    except Exception:
+        pass
+
+def _lhm_task_stop():
+    """Stop the running LHM scheduled task — no elevation needed."""
+    try:
+        subprocess.run(
+            ['schtasks', '/end', '/tn', LHM_TASK_NAME],
+            creationflags=subprocess.CREATE_NO_WINDOW, capture_output=True
+        )
+    except Exception:
+        pass
 
 def _load_active_preset():
     if os.path.exists(_FAN_CURVE_FILE):
@@ -1146,6 +1208,8 @@ def api_shutdown():
     if _lhm_proc is not None:
         try: _lhm_proc.terminate()
         except: pass
+    elif _lhm_task_exists():
+        _lhm_task_stop()
     fn = request.environ.get('werkzeug.server.shutdown')
     if fn: fn()
     else: threading.Thread(target=lambda: (time.sleep(0.5), os._exit(0)), daemon=True).start()
@@ -1735,11 +1799,20 @@ def _download_lhm():
             _lhm_proc = proc
         except OSError as _oe:
             if getattr(_oe, 'winerror', None) == 740:
-                # LHM manifest requires elevation — request via UAC prompt
-                import ctypes
-                ctypes.windll.shell32.ShellExecuteW(
-                    None, 'runas', lhm_exe, '/minimized', None, 1)
-                # No proc handle from ShellExecute, but LHM will be running after UAC
+                # LHM manifest requires elevation.
+                # Create a scheduled task (one-time UAC) so future launches
+                # and shutdowns work without elevation prompts.
+                _lhm_task_create(lhm_exe)
+                time.sleep(4)  # Wait for UAC + task registration
+                if _lhm_task_exists():
+                    _lhm_task_run()
+                    time.sleep(2)  # Give LHM a moment to start
+                else:
+                    # UAC was denied or task creation failed
+                    with _lhm_lock:
+                        _lhm_state.update(state='error',
+                            error='Elevation required — please approve the UAC prompt and retry')
+                    return
             else:
                 raise
         # Save installed path to preferences
