@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.8'
+VER               = '1.6.9'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -277,11 +277,80 @@ def _read_fan_rpms():
     except:
         return []
 
-def _lhm_read_sensors():
-    """Query root/LibreHardwareMonitor WMI for temp, volt, fans. Windows-only."""
+def _lhm_http_read(timeout=2):
+    """Option A: Read LHM sensor data via its built-in HTTP server (port 8085).
+    No admin required. Returns result dict on success, None if unavailable.
+    User must enable: LHM → Options → Remote Web Server (port 8085).
+    """
+    import urllib.request, json as _json
     result = {'available': False, 'temp': None, 'volt': None, 'fans': []}
+    try:
+        resp = urllib.request.urlopen('http://localhost:8085/data.json', timeout=timeout)
+        data = _json.loads(resp.read().decode('utf-8'))
+    except Exception:
+        return None  # server not up
+
+    _TEMP_SECTIONS  = {'temperatures', 'temperature'}
+    _VOLT_SECTIONS  = {'voltages', 'voltage'}
+    _FAN_SECTIONS   = {'fan speed', 'fans', 'fan'}
+    _CPU_TEMP_KEYS  = ('cpu package', 'cpu tdie', 'tdie', 'tctl', 'cpu core', 'cpu')
+    _CPU_VOLT_KEYS  = ('vcore', 'core vid', 'cpu vdd', 'cpu')
+
+    def _parse_val(val_str):
+        try:
+            return float(str(val_str).split()[0].replace(',', '.'))
+        except (ValueError, IndexError, AttributeError):
+            return None
+
+    def _walk(node, section=None):
+        name  = (node.get('Text') or '').strip()
+        namel = name.lower()
+        children = node.get('Children') or []
+
+        if namel in _TEMP_SECTIONS:
+            section = 'temp'
+        elif namel in _VOLT_SECTIONS:
+            section = 'volt'
+        elif namel in _FAN_SECTIONS:
+            section = 'fan'
+
+        if not children:
+            # Leaf — actual sensor value
+            val = _parse_val(node.get('Value'))
+            if val is None:
+                return
+            if section == 'temp' and result['temp'] is None:
+                if any(k in namel for k in _CPU_TEMP_KEYS):
+                    result['temp'] = round(val, 1)
+            elif section == 'volt' and result['volt'] is None:
+                if any(k in namel for k in _CPU_VOLT_KEYS):
+                    result['volt'] = round(val, 3)
+            elif section == 'fan' and val > 0:
+                result['fans'].append({'name': name, 'rpm': round(val)})
+        else:
+            for child in children:
+                _walk(child, section)
+
+    _walk(data)
+    if result['temp'] is not None or result['fans']:
+        result['available'] = True
+        return result
+    return None  # LHM up but no useful sensors found
+
+def _lhm_read_sensors():
+    """Query LHM sensor data. Tries HTTP (no admin) then WMI (admin only)."""
+    result = {'available': False, 'temp': None, 'volt': None, 'fans': [],
+              'source': None}
     if sys.platform != 'win32':
         return result
+
+    # Option A: HTTP on port 8085 — works without admin rights
+    http = _lhm_http_read()
+    if http is not None:
+        http['source'] = 'http'
+        return http
+
+    # Option B: WMI namespace — requires LHM running as admin
     try:
         import wmi as _w
         lhm = _w.WMI(namespace='root/LibreHardwareMonitor')
@@ -296,6 +365,7 @@ def _lhm_read_sensors():
             elif s.SensorType == 'Fan':
                 result['fans'].append({'name': s.Name, 'rpm': round(val)})
         result['available'] = True
+        result['source'] = 'wmi'
     except:
         pass
     return result
@@ -1233,19 +1303,30 @@ def api_diagnostics():
                                            fix='pip install GPUtil', auto_fix=True)
     except Exception: diags['gpu']=dict(status='no_gpu_found',message='No NVIDIA GPU detected',fix=None)
     if sys.platform == 'win32':
-        lhm = False
-        try:
-            import wmi as _w2
-            for ns in ('root/LibreHardwareMonitor','root/OpenHardwareMonitor'):
-                try: _w2.WMI(namespace=ns); lhm=True; break
-                except: pass
-        except: pass
-        diags['cpu_temp'] = dict(status='ok',message='Hardware monitor running',fix=None) if lhm else \
-                            dict(status='needs_lhm' if _WMI else 'missing_package',
-                                 message='LibreHardwareMonitor needed' if _WMI else 'WMI not installed',
-                                 fix='Launch LibreHardwareMonitor.exe as Administrator' if _WMI else 'pip install wmi pywin32',
-                                 auto_fix=not _WMI,
-                                 **({'download':'https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest'} if _WMI else {}))
+        # Check LHM sensor availability: HTTP first, WMI fallback
+        lhm_data = _lhm_read_sensors()
+        lhm_proc = _lhm_is_running()
+        if lhm_data['available']:
+            src = lhm_data.get('source', '')
+            diags['cpu_temp'] = dict(status='ok',
+                message=f'LHM sensors active ({"web server" if src=="http" else "admin/WMI"})',
+                fix=None)
+        elif lhm_proc:
+            # LHM is running but data isn't reachable — running without admin,
+            # web server not enabled
+            diags['cpu_temp'] = dict(
+                status='needs_lhm',
+                message='LHM running but sensors unavailable — needs admin or web server',
+                fix='Enable LHM web server (Options → Remote Web Server, port 8085) OR restart LHM as Administrator',
+                auto_fix=False,
+                download='https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest')
+        else:
+            diags['cpu_temp'] = dict(
+                status='needs_lhm' if _WMI else 'missing_package',
+                message='LibreHardwareMonitor needed' if _WMI else 'WMI not installed',
+                fix='Launch LibreHardwareMonitor.exe as Administrator' if _WMI else 'pip install wmi pywin32',
+                auto_fix=not _WMI,
+                **({'download':'https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest'} if _WMI else {}))
         diags['wmi'] = dict(status='ok' if _WMI else 'missing_package',
                             message='WMI available' if _WMI else 'WMI not installed',
                             fix=None if _WMI else 'pip install wmi pywin32', auto_fix=not _WMI)
