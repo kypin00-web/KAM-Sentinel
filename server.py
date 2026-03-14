@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.6.10'
+VER               = '1.7.0'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -414,6 +414,26 @@ _active_fan_preset = _load_active_preset()
 BENCH_FILE    = os.path.join(LOG_DIR, 'benchmarks.jsonl')
 _bench_lock   = threading.Lock()
 _bench_status = dict(running=False, step=None, run_id=None, result=None, noise_warn=False)
+
+# ── GPU benchmark state ────────────────────────────────────────────────────────
+GPU_BENCH_DIR  = os.path.join(LOG_DIR, 'benchmarks')
+GPU_BENCH_FILE = os.path.join(GPU_BENCH_DIR, 'gpu_history.jsonl')
+os.makedirs(GPU_BENCH_DIR, exist_ok=True)
+_gpu_bench_lock   = threading.Lock()
+_gpu_bench_status = dict(running=False, step=None, run_id=None, result=None)
+
+# ── Soft-changes rollback state ────────────────────────────────────────────────
+_soft_lock  = threading.Lock()
+_soft_state = {'powerplan': None, 'killed': [], 'fan_preset': None}
+
+# ── Background process kill list ───────────────────────────────────────────────
+BG_SAFE_KILL = frozenset({
+    'OneDrive.exe', 'Teams.exe', 'Spotify.exe', 'Discord.exe',
+    'SearchIndexer.exe', 'SgrmBroker.exe',
+    'GoogleCrashHandler.exe', 'GoogleCrashHandler64.exe', 'GoogleUpdate.exe',
+    'AdobeUpdaterDaemon.exe', 'AdobeIPCBroker.exe', 'AdobeUpdateService.exe',
+})
+BG_SUSPEND_ONLY = frozenset({'MsMpEng.exe'})  # Defender scan — suspend, never terminate
 
 # ── Locks ─────────────────────────────────────────────────────────────────────
 _state_lock = threading.Lock()
@@ -866,6 +886,179 @@ def _run_benchmark(mode, run_id):
         with _bench_lock:
             _bench_status.update(running=False, step=None,
                                   result=dict(error=str(e)[:200]))
+
+# ── Soft-changes helpers ──────────────────────────────────────────────────────
+def _write_bug_entry(trigger, fix, result):
+    """Write a structured bug entry to logs/feedback/bug.jsonl for BugWatcher."""
+    try:
+        fd = os.path.join(LOG_DIR, 'feedback')
+        os.makedirs(fd, exist_ok=True)
+        now = datetime.datetime.now().isoformat()
+        entry = {
+            'bug_id':         str(uuid.uuid4()),
+            'trigger':        trigger,
+            'attempted_fix':  fix,
+            'result':         result,
+            'os':             sys.platform,
+            'version':        VER,
+            'attempt_count':  1,
+            'affected_count': 1,
+            'priority':       'low',
+            'status':         'open',
+            'filed_at':       now,
+            'last_seen':      now,
+            'message':        f'Auto-filed: {trigger} — {result}',
+        }
+        with open(os.path.join(fd, 'bug.jsonl'), 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry) + '\n')
+    except Exception as e:
+        _log_err('write_bug_entry', e)
+
+
+def _get_powerplan_guid():
+    """Return active power plan GUID string, or None on failure."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        r = subprocess.run(
+            ['powercfg', '/getactivescheme'],
+            capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        m = re.search(
+            r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+            r.stdout, re.IGNORECASE,
+        )
+        return m.group(1) if m else None
+    except Exception as e:
+        _log_err('get_powerplan_guid', e)
+        return None
+
+
+def _kill_bg_processes():
+    """Kill or suspend safe background processes. Returns list of action dicts."""
+    if sys.platform != 'win32':
+        return []
+    killed = []
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            name = proc.info['name']
+            pid  = proc.info['pid']
+            try:
+                exe = proc.exe()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                exe = ''
+            if name in BG_SUSPEND_ONLY:
+                proc.suspend()
+                killed.append({'name': name, 'pid': pid, 'action': 'suspended', 'exe': exe})
+            elif name in BG_SAFE_KILL:
+                proc.kill()
+                killed.append({'name': name, 'pid': pid, 'action': 'killed', 'exe': exe})
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    return killed
+
+
+# ── GPU benchmark helpers ──────────────────────────────────────────────────────
+def _bench_gpu_compute():
+    """Numpy (or pure-Python fallback) array compute benchmark. Returns (score, ms)."""
+    t0 = time.perf_counter()
+    try:
+        import numpy as np
+        n = 512
+        a = np.random.rand(n, n).astype('float32')
+        b = np.random.rand(n, n).astype('float32')
+        for _ in range(5):
+            np.dot(a, b)
+        ms = max((time.perf_counter() - t0) * 1000, 0.001)
+        gflops = (5 * 2 * n ** 3) / (ms * 1e6)
+        return max(1, int(gflops * 1000)), round(ms)
+    except ImportError:
+        n = 64
+        a = [[math.sin(i * j + 1) for j in range(n)] for i in range(n)]
+        b = [[math.cos(i * j + 1) for j in range(n)] for i in range(n)]
+        _ = [[sum(a[i][k] * b[k][j] for k in range(n)) for j in range(n)] for i in range(n)]
+        ms = max((time.perf_counter() - t0) * 1000, 0.001)
+        return max(1, int(n ** 3 / ms)), round(ms)
+
+
+def _bench_gpu_power():
+    """Return GPU power draw in watts via nvidia-smi, or None."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        r = subprocess.run(
+            ['nvidia-smi', '--query-gpu=power.draw', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if r.returncode == 0:
+            return round(float(r.stdout.strip().split('\n')[0].strip()), 1)
+    except Exception:
+        pass
+    return None
+
+
+def _run_gpu_benchmark(run_id):
+    """Background thread: run GPU benchmark suite, update _gpu_bench_status, persist."""
+    global _gpu_bench_status
+
+    def _upd(step):
+        with _gpu_bench_lock:
+            _gpu_bench_status['step'] = step
+
+    try:
+        GPU_TJMAX = 83.0
+
+        _upd('Reading GPU state...')
+        gpu_snap   = get_gpu_cached()
+        gpu_temp   = gpu_snap.get('temp')
+        vram_total = gpu_snap.get('vram_total')
+
+        thermal_headroom = round(GPU_TJMAX - gpu_temp, 1) if gpu_temp else None
+        # VRAM bandwidth: GDDR6 rough estimate ~12.5 GB/s per GiB of VRAM
+        vram_bw = round(vram_total / 1024 * 12.5, 1) if vram_total else None
+
+        _upd('GPU compute...')
+        compute_score, compute_ms = _bench_gpu_compute()
+
+        _upd('Checking power draw...')
+        power_w = _bench_gpu_power()
+        power_efficiency = round(compute_score / power_w, 1) if power_w and power_w > 0 else None
+
+        th_score = max(0, min(100, int((thermal_headroom / GPU_TJMAX) * 100))) if thermal_headroom is not None else 50
+        bw_score = max(0, min(100, int(vram_bw / 10))) if vram_bw else 50
+        overall  = int(compute_score * 0.60 + th_score * 0.20 + bw_score * 0.20)
+
+        result = dict(
+            run_id              = run_id,
+            ts                  = int(time.time()),
+            date                = datetime.datetime.now().isoformat(),
+            gpu_name            = gpu_snap.get('name', 'Unknown'),
+            vram_bandwidth_gbps = vram_bw,
+            compute_score       = compute_score,
+            thermal_headroom_c  = thermal_headroom,
+            power_efficiency    = power_efficiency,
+            overall_gpu_score   = overall,
+            duration_ms         = compute_ms,
+        )
+
+        os.makedirs(GPU_BENCH_DIR, exist_ok=True)
+        try:
+            with open(GPU_BENCH_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(result) + '\n')
+        except Exception as e:
+            _log_err('gpu_bench_save', e)
+
+        with _gpu_bench_lock:
+            _gpu_bench_status.update(running=False, step=None, result=result)
+
+    except Exception as e:
+        _log_err('gpu_benchmark_runner', e)
+        with _gpu_bench_lock:
+            _gpu_bench_status.update(running=False, step=None,
+                                     result=dict(error=str(e)[:200]))
+
 
 # ── Network speed ─────────────────────────────────────────────────────────────
 def _net_speed():
@@ -1985,6 +2178,212 @@ def api_preferences():
     except Exception as e:
         _log_err('api_preferences', e)
         return jsonify(error=str(e)), 500
+
+
+# ── Module 2 — CPU Soft Changes ───────────────────────────────────────────────
+@app.route('/api/forge/apply/powerplan', methods=['POST'])
+def api_forge_apply_powerplan():
+    if sys.platform != 'win32':
+        return jsonify(status='unavailable', reason='Windows only'), 200
+    preview = request.args.get('preview') == '1'
+    if preview:
+        return jsonify(status='preview',
+                       action='Set power plan to High Performance (SCHEME_MIN)',
+                       would_store_previous=True)
+    try:
+        prev = _get_powerplan_guid()
+        r = subprocess.run(
+            ['powercfg', '/setactive', 'SCHEME_MIN'],
+            capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if r.returncode != 0:
+            _write_bug_entry('powerplan_apply_failed', 'powercfg_setactive_SCHEME_MIN',
+                             f'returncode={r.returncode} stderr={r.stderr.strip()[:100]}')
+            return jsonify(status='error', reason=r.stderr.strip()), 500
+        with _soft_lock:
+            _soft_state['powerplan'] = prev
+        return jsonify(status='applied', previous=prev)
+    except Exception as e:
+        _log_err('api_forge_apply_powerplan', e)
+        _write_bug_entry('powerplan_apply_exception', 'powercfg_setactive_SCHEME_MIN', str(e)[:200])
+        return jsonify(status='error', reason=str(e)), 500
+
+
+@app.route('/api/forge/apply/kill_bg', methods=['POST'])
+def api_forge_apply_kill_bg():
+    if sys.platform != 'win32':
+        return jsonify(status='unavailable', reason='Windows only'), 200
+    preview = request.args.get('preview') == '1'
+    if preview:
+        would_kill = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                n = proc.info['name']
+                if n in BG_SAFE_KILL or n in BG_SUSPEND_ONLY:
+                    would_kill.append({'name': n, 'pid': proc.info['pid'],
+                                       'action': 'suspend' if n in BG_SUSPEND_ONLY else 'kill'})
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return jsonify(status='preview', would_kill=would_kill)
+    try:
+        killed = _kill_bg_processes()
+        with _soft_lock:
+            _soft_state['killed'] = killed
+        if killed:
+            log_path = _jgm_log_path()
+            os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
+            entry = {
+                'timestamp':  datetime.datetime.now().isoformat(),
+                'session_id': str(uuid.uuid4()),
+                'source':     'kill_bg',
+                'killed':     [{'name': k['name'], 'pid': k['pid'], 'action': k['action']}
+                               for k in killed],
+                'restored':   False,
+            }
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry) + '\n')
+        return jsonify(status='applied',
+                       killed=[{'name': k['name'], 'pid': k['pid'], 'action': k['action']}
+                               for k in killed])
+    except Exception as e:
+        _log_err('api_forge_apply_kill_bg', e)
+        _write_bug_entry('kill_bg_exception', 'psutil_process_iter_kill', str(e)[:200])
+        return jsonify(status='error', reason=str(e)), 500
+
+
+@app.route('/api/forge/apply/fancurve', methods=['POST'])
+def api_forge_apply_fancurve():
+    global _active_fan_preset
+    if sys.platform != 'win32':
+        return jsonify(status='unavailable', reason='Windows only'), 200
+    preview = request.args.get('preview') == '1'
+    if preview:
+        return jsonify(status='preview',
+                       action='Set fan curve to PERFORMANCE preset',
+                       current_preset=_active_fan_preset)
+    with _soft_lock:
+        _soft_state['fan_preset'] = _active_fan_preset
+    # Try LHM HTTP first
+    lhm_ok = False
+    try:
+        import urllib.request as _ur
+        req = _ur.Request('http://localhost:8085/data.json',
+                          headers={'User-Agent': 'KAM-Sentinel/1.0'})
+        with _ur.urlopen(req, timeout=2) as resp:
+            lhm_ok = resp.status == 200
+    except Exception:
+        pass
+    _active_fan_preset = 'PERFORMANCE'
+    try:
+        with open(_FAN_CURVE_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'active': 'PERFORMANCE'}, f)
+    except Exception as e:
+        _log_err('fancurve_apply_save', e)
+    if lhm_ok:
+        return jsonify(status='applied', preset='PERFORMANCE', method='lhm')
+    # Try WMI fan control
+    wmi_ok = False
+    if _WMI:
+        try:
+            import wmi as _wmi
+            c = _wmi.WMI(namespace='root/LibreHardwareMonitor')
+            wmi_ok = bool(c.Hardware(HardwareType='Motherboard'))
+        except Exception:
+            pass
+    method = 'wmi' if wmi_ok else 'preset_only'
+    note   = None if wmi_ok else 'LHM and WMI fan control unavailable — preset saved for next LHM start'
+    return jsonify(status='applied', preset='PERFORMANCE', method=method,
+                   **({'note': note} if note else {}))
+
+
+@app.route('/api/forge/rollback/instant', methods=['POST'])
+def api_forge_rollback_instant():
+    global _active_fan_preset
+    if sys.platform != 'win32':
+        return jsonify(status='unavailable', reason='Windows only'), 200
+    with _soft_lock:
+        prev_plan    = _soft_state.get('powerplan')
+        killed_procs = list(_soft_state.get('killed', []))
+        prev_fan     = _soft_state.get('fan_preset')
+    results = {'powerplan': None, 'relaunched': [], 'fan_preset': None}
+    # Restore power plan
+    if prev_plan:
+        try:
+            r = subprocess.run(
+                ['powercfg', '/setactive', prev_plan],
+                capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            results['powerplan'] = 'restored' if r.returncode == 0 else f'failed:{r.stderr.strip()}'
+        except Exception as e:
+            _log_err('rollback_powerplan', e)
+            results['powerplan'] = f'error:{e}'
+    else:
+        results['powerplan'] = 'no_saved_state'
+    # Resume suspended / re-launch killed processes
+    for k in killed_procs:
+        if k.get('action') == 'suspended':
+            try:
+                psutil.Process(k['pid']).resume()
+                results['relaunched'].append({'name': k['name'], 'action': 'resumed'})
+            except Exception:
+                results['relaunched'].append({'name': k['name'], 'action': 'resume_failed'})
+        elif k.get('action') == 'killed' and k.get('exe'):
+            try:
+                subprocess.Popen(
+                    [k['exe']],
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    close_fds=True,
+                )
+                results['relaunched'].append({'name': k['name'], 'action': 'relaunched'})
+            except Exception:
+                results['relaunched'].append({'name': k['name'], 'action': 'relaunch_failed'})
+    # Revert fan curve
+    if prev_fan:
+        _active_fan_preset = prev_fan
+        try:
+            with open(_FAN_CURVE_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'active': prev_fan}, f)
+            results['fan_preset'] = f'restored:{prev_fan}'
+        except Exception as e:
+            _log_err('rollback_fan', e)
+            results['fan_preset'] = f'error:{e}'
+    else:
+        results['fan_preset'] = 'no_saved_state'
+    with _soft_lock:
+        _soft_state.update(powerplan=None, killed=[], fan_preset=None)
+    return jsonify(status='rolled_back', results=results)
+
+
+# ── GPU Benchmarking ───────────────────────────────────────────────────────────
+@app.route('/api/forge/benchmark/gpu', methods=['POST'])
+def api_forge_benchmark_gpu():
+    global _gpu_bench_status
+    with _gpu_bench_lock:
+        if _gpu_bench_status['running']:
+            return jsonify(error='GPU benchmark already running', running=True), 409
+        run_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        _gpu_bench_status.update(running=True, step='Starting...', run_id=run_id, result=None)
+    threading.Thread(target=_run_gpu_benchmark, args=(run_id,), daemon=True).start()
+    return jsonify(started=True, run_id=run_id)
+
+
+@app.route('/api/forge/benchmark/gpu/status')
+def api_forge_benchmark_gpu_status():
+    with _gpu_bench_lock:
+        return jsonify(dict(_gpu_bench_status))
+
+
+@app.route('/api/forge/benchmark/gpu/history')
+def api_forge_benchmark_gpu_history():
+    runs = []
+    if os.path.exists(GPU_BENCH_FILE):
+        with open(GPU_BENCH_FILE, encoding='utf-8') as f:
+            for ln in f:
+                try: runs.append(json.loads(ln))
+                except: pass
+    return jsonify(runs=list(reversed(runs[-10:])))
 
 
 if __name__ == '__main__':

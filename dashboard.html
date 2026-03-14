@@ -1016,6 +1016,50 @@ footer {
     </div>
   </div>
 
+  <!-- GPU BENCHMARK CARD -->
+  <div class="section-label">GPU BENCHMARK</div>
+  <div class="forge-grid forge-grid-bench">
+    <div class="forge-card" style="--c:var(--green)">
+      <div class="forge-card-hdr">
+        <div class="forge-card-title">GPU BENCHMARK</div>
+        <div class="card-tag">COMPUTE · THERMAL · VRAM</div>
+      </div>
+      <div class="bench-btns">
+        <button class="bench-btn" id="gpu-bench-btn" onclick="runGpuBench()">&#x25B6; RUN GPU BENCH <span style="font-size:.55rem;opacity:.7">~5s</span></button>
+      </div>
+      <div class="bench-status" id="gpu-bench-status">IDLE</div>
+      <div id="gpu-bench-scores-wrap">
+        <div class="bench-score-row">
+          <span class="bsr-k">Compute Score</span>
+          <span><span class="bsr-v" id="gpu-bsr-compute">—</span><span class="bsr-delta" id="gpu-bsr-compute-delta"></span></span>
+        </div>
+        <div class="bench-score-row">
+          <span class="bsr-k">VRAM Bandwidth (est.)</span>
+          <span class="bsr-v" id="gpu-bsr-vram">—</span>
+        </div>
+        <div class="bench-score-row">
+          <span class="bsr-k">Thermal Headroom</span>
+          <span class="bsr-v" id="gpu-bsr-thermal">—</span>
+        </div>
+        <div class="bench-score-row">
+          <span class="bsr-k">Power Efficiency</span>
+          <span class="bsr-v" id="gpu-bsr-power">—</span>
+        </div>
+        <div class="bench-score-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+          <span class="bsr-k" style="color:var(--cyan)">Overall GPU Score</span>
+          <span><span class="bsr-v" id="gpu-bsr-overall" style="color:var(--cyan)">—</span><span class="bsr-delta" id="gpu-bsr-overall-delta"></span></span>
+        </div>
+      </div>
+      <span class="bench-history-toggle" id="gpu-bench-hist-toggle" onclick="toggleGpuBenchHistory()">&#x25BE; HISTORY</span>
+      <div class="bench-history" id="gpu-bench-history">
+        <table>
+          <thead><tr><th>DATE</th><th>COMPUTE</th><th>THERMAL</th><th>OVERALL</th></tr></thead>
+          <tbody id="gpu-bench-history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- FAN CONTROL CARD -->
   <div class="section-label">FAN CONTROL</div>
   <div class="forge-grid">
@@ -2248,6 +2292,100 @@ function toggleBenchHistory() {
   const tog = document.getElementById('bench-hist-toggle');
   if(tog) tog.textContent = (open ? '\u25B4' : '\u25BE') + ' HISTORY';
   if(open) _refreshBenchHistory();
+}
+
+// ── GPU Benchmark ────────────────────────────────────────────────────────────
+let _gpuBenchPolling = null;
+let _gpuBenchPrev    = null;  // last result for delta calculation
+
+async function runGpuBench() {
+  const btn      = document.getElementById('gpu-bench-btn');
+  const statusEl = document.getElementById('gpu-bench-status');
+  if(btn) { btn.disabled = true; btn.classList.add('running'); }
+  if(statusEl) { statusEl.textContent = 'STARTING...'; statusEl.className = 'bench-status running'; }
+  try {
+    const r = await fetch('/api/forge/benchmark/gpu', {method: 'POST'});
+    const d = await r.json();
+    if(!r.ok || d.error) {
+      if(statusEl) { statusEl.textContent = d.error || 'Failed to start'; statusEl.className = 'bench-status'; }
+      if(btn) { btn.disabled = false; btn.classList.remove('running'); }
+      return;
+    }
+    if(_gpuBenchPolling) clearInterval(_gpuBenchPolling);
+    _gpuBenchPolling = setInterval(_pollGpuBench, 1500);
+  } catch(e) {
+    if(statusEl) { statusEl.textContent = 'ERROR'; statusEl.className = 'bench-status'; }
+    if(btn) { btn.disabled = false; btn.classList.remove('running'); }
+  }
+}
+
+async function _pollGpuBench() {
+  try {
+    const r = await fetch('/api/forge/benchmark/gpu/status');
+    if(!r.ok) return;
+    const d = await r.json();
+    const statusEl = document.getElementById('gpu-bench-status');
+    const btn      = document.getElementById('gpu-bench-btn');
+    if(d.running) {
+      if(statusEl) { statusEl.textContent = d.step || 'RUNNING...'; statusEl.className = 'bench-status running'; }
+    } else {
+      clearInterval(_gpuBenchPolling); _gpuBenchPolling = null;
+      if(statusEl) { statusEl.textContent = d.result ? 'COMPLETE' : 'IDLE'; statusEl.className = 'bench-status'; }
+      if(btn) { btn.disabled = false; btn.classList.remove('running'); }
+      if(d.result && !d.result.error) {
+        _showGpuBenchResult(d.result);
+        _refreshGpuBenchHistory();
+      }
+    }
+  } catch(_) {}
+}
+
+function _showGpuBenchResult(r) {
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('gpu-bsr-compute', r.compute_score != null ? r.compute_score.toLocaleString() : '—');
+  set('gpu-bsr-vram',    r.vram_bandwidth_gbps != null ? r.vram_bandwidth_gbps + ' GB/s' : '—');
+  set('gpu-bsr-thermal', r.thermal_headroom_c  != null ? '+' + r.thermal_headroom_c + '°C headroom' : '—');
+  set('gpu-bsr-power',   r.power_efficiency    != null ? r.power_efficiency + ' pts/W' : 'N/A');
+  set('gpu-bsr-overall', r.overall_gpu_score   != null ? r.overall_gpu_score.toLocaleString() : '—');
+  // Delta vs previous run
+  function _delta(elId, cur, prev) {
+    const el = document.getElementById(elId);
+    if(!el || cur == null || prev == null || prev === 0) return;
+    const diff = cur - prev;
+    el.textContent = (diff >= 0 ? ' +' : ' ') + diff.toLocaleString() + ' pts';
+    el.className = 'bsr-delta ' + (diff >= 0 ? 'pos' : 'neg');
+  }
+  if(_gpuBenchPrev) {
+    _delta('gpu-bsr-compute-delta', r.compute_score, _gpuBenchPrev.compute_score);
+    _delta('gpu-bsr-overall-delta', r.overall_gpu_score, _gpuBenchPrev.overall_gpu_score);
+  }
+  _gpuBenchPrev = r;
+}
+
+async function _refreshGpuBenchHistory() {
+  try {
+    const r = await fetch('/api/forge/benchmark/gpu/history');
+    if(!r.ok) return;
+    const d = await r.json();
+    const tbody = document.getElementById('gpu-bench-history-body');
+    if(!tbody) return;
+    tbody.innerHTML = (d.runs || []).slice(0, 5).map(run => {
+      const date    = (run.date || '').substring(0, 16).replace('T', ' ');
+      const compute = run.compute_score   != null ? run.compute_score.toLocaleString()   : '—';
+      const thermal = run.thermal_headroom_c != null ? '+' + run.thermal_headroom_c + '°C' : '—';
+      const overall = run.overall_gpu_score  != null ? run.overall_gpu_score.toLocaleString() : '—';
+      return `<tr><td>${date}</td><td>${compute}</td><td>${thermal}</td><td>${overall}</td></tr>`;
+    }).join('');
+  } catch(_) {}
+}
+
+function toggleGpuBenchHistory() {
+  const el = document.getElementById('gpu-bench-history');
+  if(!el) return;
+  const open = el.classList.toggle('open');
+  const tog  = document.getElementById('gpu-bench-hist-toggle');
+  if(tog) tog.textContent = (open ? '\u25B4' : '\u25BE') + ' HISTORY';
+  if(open) _refreshGpuBenchHistory();
 }
 
 // ── What's New Walkthrough ────────────────────────────────────────────────

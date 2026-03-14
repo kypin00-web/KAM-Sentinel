@@ -1733,6 +1733,145 @@ for _selector, _label in _jgm_html_checks:
     else:
         fail(f"dashboard.html: {_label} -- not found")
 
+# ── §19. Module 2 — CPU Soft Changes + GPU Benchmarking ──────────────────────
+section("19. Module 2 — Soft Changes + GPU Benchmarking")
+
+import importlib as _il19, types as _ty19
+
+try:
+    import importlib.util as _ilu19, os as _os19, sys as _sys19, json as _json19, tempfile as _tf19
+
+    _spec19  = _ilu19.spec_from_file_location('server19', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py'))
+    _mod19   = _ilu19.module_from_spec(_spec19)
+    _sys19.modules.setdefault('server19', _mod19)
+    _spec19.loader.exec_module(_mod19)
+
+    # -- Static: constants --
+    for _const in ('GPU_BENCH_DIR', 'GPU_BENCH_FILE', '_gpu_bench_lock', '_gpu_bench_status',
+                   '_soft_lock', '_soft_state', 'BG_SAFE_KILL', 'BG_SUSPEND_ONLY'):
+        if hasattr(_mod19, _const):
+            ok(f"server.py: {_const} constant/object present")
+        else:
+            fail(f"server.py: {_const} missing")
+
+    # -- Static: helper functions --
+    for _fn in ('_write_bug_entry', '_get_powerplan_guid', '_kill_bg_processes',
+                '_bench_gpu_compute', '_bench_gpu_power', '_run_gpu_benchmark'):
+        if hasattr(_mod19, _fn):
+            ok(f"server.py: {_fn}() present")
+        else:
+            fail(f"server.py: {_fn}() missing")
+
+    # -- Static: routes registered --
+    _app19 = _mod19.app
+    _url_map19 = {str(r) for r in _app19.url_map.iter_rules()}
+    for _route in ('/api/forge/apply/powerplan', '/api/forge/apply/kill_bg',
+                   '/api/forge/apply/fancurve', '/api/forge/rollback/instant',
+                   '/api/forge/benchmark/gpu', '/api/forge/benchmark/gpu/status',
+                   '/api/forge/benchmark/gpu/history'):
+        if any(_route in u for u in _url_map19):
+            ok(f"server.py: {_route} route registered")
+        else:
+            fail(f"server.py: {_route} route NOT registered")
+
+    # -- Static: BG_SAFE_KILL / BG_SUSPEND_ONLY contents --
+    _safe_kill = _mod19.BG_SAFE_KILL
+    _expected_kill = {'OneDrive.exe', 'Teams.exe', 'Spotify.exe', 'Discord.exe',
+                      'SearchIndexer.exe', 'SgrmBroker.exe'}
+    if _expected_kill.issubset(_safe_kill):
+        ok("BG_SAFE_KILL contains expected safe-kill processes")
+    else:
+        fail(f"BG_SAFE_KILL missing entries: {_expected_kill - _safe_kill}")
+
+    if 'MsMpEng.exe' in _mod19.BG_SUSPEND_ONLY:
+        ok("BG_SUSPEND_ONLY contains MsMpEng.exe (Defender suspend, not kill)")
+    else:
+        fail("BG_SUSPEND_ONLY missing MsMpEng.exe")
+
+    if 'MsMpEng.exe' not in _safe_kill:
+        ok("MsMpEng.exe NOT in BG_SAFE_KILL (suspend-only, never terminated)")
+    else:
+        fail("MsMpEng.exe is in BG_SAFE_KILL — must be suspend-only, never terminated")
+
+    # -- Flask client tests --
+    _c19 = _app19.test_client()
+
+    # preview=1 mode for all three apply routes
+    for _route_path, _label in [
+        ('/api/forge/apply/powerplan?preview=1', 'powerplan preview'),
+        ('/api/forge/apply/kill_bg?preview=1',  'kill_bg preview'),
+        ('/api/forge/apply/fancurve?preview=1', 'fancurve preview'),
+    ]:
+        _pr = _c19.post(_route_path, content_type='application/json')
+        _pd = _json19.loads(_pr.data)
+        if _pr.status_code == 200 and _pd.get('status') in ('preview', 'unavailable'):
+            ok(f"POST {_route_path} -> 200 preview/unavailable response")
+        else:
+            fail(f"POST {_route_path} -> {_pr.status_code} body={_pd}")
+
+    # rollback returns 200 on Windows or unavailable on non-Windows
+    _rb = _c19.post('/api/forge/rollback/instant')
+    _rbd = _json19.loads(_rb.data)
+    if _rb.status_code == 200 and _rbd.get('status') in ('rolled_back', 'unavailable'):
+        ok("POST /api/forge/rollback/instant -> 200 (rolled_back or unavailable)")
+    else:
+        fail(f"POST /api/forge/rollback/instant -> {_rb.status_code} body={_rbd}")
+
+    # GPU benchmark POST -> started or 409
+    _gbr = _c19.post('/api/forge/benchmark/gpu')
+    _gbd = _json19.loads(_gbr.data)
+    if _gbr.status_code in (200, 409) and ('started' in _gbd or 'error' in _gbd):
+        ok(f"POST /api/forge/benchmark/gpu -> {_gbr.status_code} (started or 409)")
+    else:
+        fail(f"POST /api/forge/benchmark/gpu -> {_gbr.status_code} body={_gbd}")
+
+    # GPU benchmark status -> 200 with required keys
+    _gbs = _c19.get('/api/forge/benchmark/gpu/status')
+    if _gbs.status_code == 200:
+        _gbsd = _json19.loads(_gbs.data)
+        for _k in ('running', 'step', 'run_id', 'result'):
+            if _k in _gbsd:
+                ok(f"GET /api/forge/benchmark/gpu/status has key: '{_k}'")
+            else:
+                fail(f"GET /api/forge/benchmark/gpu/status missing key: '{_k}'")
+    else:
+        fail(f"GET /api/forge/benchmark/gpu/status -> {_gbs.status_code}")
+
+    # GPU benchmark history -> 200 with runs list
+    _gbh = _c19.get('/api/forge/benchmark/gpu/history')
+    if _gbh.status_code == 200:
+        _gbhd = _json19.loads(_gbh.data)
+        if 'runs' in _gbhd and isinstance(_gbhd['runs'], list):
+            ok(f"GET /api/forge/benchmark/gpu/history -> 200, runs list (len={len(_gbhd['runs'])})")
+        else:
+            fail("GET /api/forge/benchmark/gpu/history missing 'runs' key")
+    else:
+        fail(f"GET /api/forge/benchmark/gpu/history -> {_gbh.status_code}")
+
+except Exception as _e19:
+    fail(f"§19 error: {_e19}")
+
+# -- Dashboard HTML checks --
+_html19 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html'), encoding='utf-8').read()
+_html19_checks = [
+    ('id="gpu-bench-btn"',          'GPU benchmark run button present'),
+    ('id="gpu-bench-status"',       'GPU benchmark status element present'),
+    ('id="gpu-bsr-compute"',        'GPU compute score display present'),
+    ('id="gpu-bsr-overall"',        'GPU overall score display present'),
+    ('id="gpu-bsr-overall-delta"',  'GPU overall score delta indicator present'),
+    ('id="gpu-bench-history"',      'GPU benchmark history panel present'),
+    ('id="gpu-bench-history-body"', 'GPU benchmark history table body present'),
+    ('runGpuBench',                 'runGpuBench() JS function present'),
+    ('_showGpuBenchResult',         '_showGpuBenchResult() JS function present'),
+    ('toggleGpuBenchHistory',       'toggleGpuBenchHistory() JS function present'),
+    ('GPU BENCHMARK',               'GPU BENCHMARK section label present'),
+]
+for _selector, _label in _html19_checks:
+    if _selector in _html19:
+        ok(f"dashboard.html: {_label}")
+    else:
+        fail(f"dashboard.html: {_label} -- not found")
+
 # -- Write HTML report ---------------------------------------------------------
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
