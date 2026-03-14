@@ -20,7 +20,7 @@ Environment:
                    Required for CI monitoring. Auto-available in GitHub Actions.
 """
 
-import json, os, sys, time, datetime, subprocess, argparse, re, threading
+import json, os, sys, time, datetime, subprocess, argparse, re, threading, uuid
 import urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -330,6 +330,330 @@ def _match(bug):
         if any(p in msg for p in issue['patterns']):
             return key, issue
     return None, None
+
+
+# ── New bug filing spec helpers ────────────────────────────────────────────────
+
+def _calc_priority(affected_count):
+    """Map affected_count to priority string per spec: low(1)/medium(2)/high(3)/critical(5+)."""
+    if affected_count >= 5:
+        return 'critical'
+    if affected_count >= 3:
+        return 'high'
+    if affected_count >= 2:
+        return 'medium'
+    return 'low'
+
+
+def _find_open_bug(trigger, os_name=None, version=None):
+    """Return existing open/in_progress bug dict matching trigger + os + version, or None."""
+    if not os.path.exists(FEEDBACK_BUG_FILE):
+        return None
+    with open(FEEDBACK_BUG_FILE, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                b = json.loads(line)
+                if b.get('trigger') != trigger:
+                    continue
+                if b.get('status') not in ('open', 'in_progress'):
+                    continue
+                if os_name and b.get('os') and b.get('os') != os_name:
+                    continue
+                if version and b.get('version') and b.get('version') != version:
+                    continue
+                return b
+            except Exception:
+                pass
+    return None
+
+
+def _update_bug_in_file(bug_id, updates):
+    """Apply updates dict to the bug with matching bug_id in FEEDBACK_BUG_FILE."""
+    if not os.path.exists(FEEDBACK_BUG_FILE):
+        return
+    lines_out = []
+    with open(FEEDBACK_BUG_FILE, encoding='utf-8') as f:
+        for raw in f:
+            raw = raw.rstrip('\n')
+            if not raw.strip():
+                continue
+            try:
+                b = json.loads(raw)
+                if b.get('bug_id') == bug_id or b.get('id') == bug_id:
+                    b.update(updates)
+                    raw = json.dumps(b)
+            except Exception:
+                pass
+            lines_out.append(raw)
+    with open(FEEDBACK_BUG_FILE, 'w', encoding='utf-8') as f:
+        for line in lines_out:
+            f.write(line + '\n')
+
+
+def _file_or_update_bug(trigger, attempted_fix, result, lhm_state=None, version=None, os_name=None):
+    """
+    File a new bug or update an existing open one (dedup by trigger).
+
+    Schema fields: bug_id (uuid4), trigger, attempted_fix, result, os, version,
+    lhm_state, attempt_count, affected_count, priority, status, filed_at.
+
+    Rules:
+    - Dedup: if an open bug with the same trigger exists, update it (increment counts).
+    - Priority escalates as affected_count grows: low(1)/medium(2)/high(3)/critical(5+).
+    - Eve notifies once on first transition to 'high' or 'critical'.
+    - At attempt_count == 3: escalate to escalated.jsonl and stop retrying.
+    - Never mark resolved on timeout — only when condition clears AND fix succeeded.
+
+    Returns the bug dict (new or updated).
+    """
+    os.makedirs(os.path.dirname(FEEDBACK_BUG_FILE), exist_ok=True)
+    now_str = datetime.datetime.now().isoformat()
+    cur_version = version
+    if not cur_version:
+        try:
+            vj = os.path.join(ROOT, 'version.json')
+            with open(vj, encoding='utf-8') as f:
+                cur_version = json.load(f).get('version', '0.0.0')
+        except Exception:
+            cur_version = '0.0.0'
+    cur_os = os_name or sys.platform
+
+    existing = _find_open_bug(trigger, os_name=cur_os, version=cur_version)
+
+    if existing:
+        bid         = existing.get('bug_id') or existing.get('id', str(uuid.uuid4()))
+        prev_count  = existing.get('attempt_count', 1)
+        new_count   = prev_count + 1
+        aff_count   = existing.get('affected_count', 1) + 1
+        old_priority = existing.get('priority', 'low')
+        new_priority = _calc_priority(aff_count)
+
+        updates = {
+            'attempt_count':  new_count,
+            'affected_count': aff_count,
+            'priority':       new_priority,
+            'attempted_fix':  attempted_fix,
+            'result':         result,
+            'last_seen':      now_str,
+        }
+        if lhm_state:
+            updates['lhm_state'] = lhm_state
+
+        # Escalate at attempt_count == 3
+        if new_count >= 3:
+            updates['status'] = 'escalated'
+            updates['escalated_at'] = now_str
+            _update_bug_in_file(bid, updates)
+            esc_bug = dict(existing)
+            esc_bug.update(updates)
+            _escalate(esc_bug)
+            _log(bid, 'escalated', f'attempt_count={new_count} — 3-strike escalation')
+            eve_speak(
+                "Okay so I have tried three times and this bug is not going away. "
+                "I am escalating it for you. Lo siento!"
+            )
+            return esc_bug
+
+        _update_bug_in_file(bid, updates)
+        _log(bid, 'updated', f'attempt_count={new_count} priority={new_priority} result={result}')
+
+        # Notify once on priority transition to high or critical
+        if new_priority in ('high', 'critical') and old_priority not in ('high', 'critical'):
+            eve_speak(
+                f"Hey! Bug {trigger} just hit {new_priority} priority — "
+                f"{aff_count} users affected. I am on it but you should take a look!"
+            )
+
+        updated = dict(existing)
+        updated.update(updates)
+        return updated
+
+    else:
+        # New bug
+        bid = str(uuid.uuid4())
+        aff_count = 1
+        priority  = _calc_priority(aff_count)
+        bug = {
+            'bug_id':         bid,
+            'trigger':        trigger,
+            'attempted_fix':  attempted_fix,
+            'result':         result,
+            'os':             cur_os,
+            'version':        cur_version,
+            'lhm_state':      lhm_state,
+            'attempt_count':  1,
+            'affected_count': aff_count,
+            'priority':       priority,
+            'status':         'open',
+            'filed_at':       now_str,
+            'last_seen':      now_str,
+            'message':        f'Auto-filed by Eve: {trigger} — {result}',
+        }
+        with open(FEEDBACK_BUG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(bug) + '\n')
+        _log(bid, 'filed', f'new bug: trigger={trigger} priority={priority}')
+        return bug
+
+
+# ── LHM-specific fix helpers ───────────────────────────────────────────────────
+
+def _lhm_config_path():
+    """Return path to LibreHardwareMonitor.config, or None if not found."""
+    local_app = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+    return os.path.join(local_app, 'KAM Sentinel', 'LHM', 'LibreHardwareMonitor.config')
+
+
+def _lhm_write_web_server_config():
+    """
+    Write RemoteWebServerActive=true and RemoteWebServerPort=8085 to LHM's config
+    BEFORE launching LHM so the HTTP server is active on first start.
+    Returns True on success, False on failure.
+    LHM uses XML .config files with <add key="..." value="..." /> entries.
+    """
+    config_path = _lhm_config_path()
+    if not config_path:
+        return False
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, encoding='utf-8', errors='replace') as f:
+                content = f.read()
+        else:
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            content = ''
+
+        def _set_xml_key(text, key, val):
+            pattern = rf'(<add\s+key="{re.escape(key)}"\s+value=")[^"]*(")'
+            if re.search(pattern, text, re.IGNORECASE):
+                return re.sub(pattern, rf'\g<1>{val}\2', text, flags=re.IGNORECASE)
+            if '</appSettings>' in text:
+                return text.replace('</appSettings>',
+                    f'    <add key="{key}" value="{val}" />\n  </appSettings>')
+            return text
+
+        if not content.strip():
+            content = (
+                '<?xml version="1.0" encoding="utf-8"?>\n'
+                '<configuration>\n'
+                '  <appSettings>\n'
+                '    <add key="remoteWebServerActive" value="true" />\n'
+                '    <add key="remoteWebServerPort" value="8085" />\n'
+                '  </appSettings>\n'
+                '</configuration>\n'
+            )
+        else:
+            content = _set_xml_key(content, 'remoteWebServerActive', 'true')
+            content = _set_xml_key(content, 'remoteWebServerPort', '8085')
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return True
+    except Exception:
+        return False
+
+
+def _lhm_poll_http(timeout=30, interval=2):
+    """
+    Poll http://localhost:8085/data.json every `interval` seconds for up to `timeout` seconds.
+    Returns True if data was received, False if timed out.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            req = urllib.request.Request(
+                'http://localhost:8085/data.json',
+                headers={'User-Agent': 'KAM-Sentinel-BugWatcher/1.0'},
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8', errors='replace'))
+                if data:
+                    return True
+        except Exception:
+            pass
+        time.sleep(interval)
+    return False
+
+
+def _lhm_fix_attempt():
+    """
+    Full LHM HTTP fix:
+    1. Write RemoteWebServerActive=true + port 8085 to LHM config.
+    2. If LHM is installed, restart it via task scheduler (preferred) or Popen.
+    3. Poll http://localhost:8085/data.json every 2s for up to 30s.
+    4. If still no data after 30s → file bug per spec.
+
+    Returns 'ok' | 'config_written_no_data' | 'config_failed' | 'not_applicable'
+    """
+    if sys.platform != 'win32':
+        return 'not_applicable'
+
+    # Step 1: write config
+    config_ok = _lhm_write_web_server_config()
+    if not config_ok:
+        _file_or_update_bug(
+            trigger='lhm_config_write_failed',
+            attempted_fix='write_remote_web_server_config',
+            result='config_file_not_writable',
+            lhm_state='config_error',
+        )
+        return 'config_failed'
+
+    # Step 2: restart LHM so it picks up the new config
+    # Try task scheduler first (works from non-admin), then Popen
+    _LHM_TASK = 'KAM Sentinel LHM'
+    restarted = False
+    try:
+        # Stop existing instance via task
+        subprocess.run(
+            ['schtasks', '/end', '/tn', _LHM_TASK],
+            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        time.sleep(1)
+        r = subprocess.run(
+            ['schtasks', '/query', '/tn', _LHM_TASK],
+            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if r.returncode == 0:
+            subprocess.Popen(
+                ['schtasks', '/run', '/tn', _LHM_TASK],
+                creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True,
+            )
+            restarted = True
+    except Exception:
+        pass
+
+    if not restarted:
+        # Try direct Popen (non-admin)
+        local_app = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+        lhm_exe = os.path.join(local_app, 'KAM Sentinel', 'LHM', 'LibreHardwareMonitor.exe')
+        if os.path.exists(lhm_exe):
+            try:
+                subprocess.Popen(
+                    [lhm_exe, '/minimized'],
+                    creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True,
+                )
+                restarted = True
+            except Exception:
+                pass
+
+    # Step 3: poll for 30s
+    time.sleep(2)  # brief head-start for LHM to initialize
+    got_data = _lhm_poll_http(timeout=30, interval=2)
+
+    if got_data:
+        return 'ok'
+
+    # Step 4: still no data → file bug
+    lhm_state = 'running_no_data' if restarted else 'not_started'
+    _file_or_update_bug(
+        trigger='lhm_http_no_data_after_config',
+        attempted_fix='write_remote_web_server_config_and_restart',
+        result='http_port_8085_still_not_responding_after_30s',
+        lhm_state=lhm_state,
+    )
+    return 'config_written_no_data'
 
 
 # ── Local poll cycle ───────────────────────────────────────────────────────────

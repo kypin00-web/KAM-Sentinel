@@ -1,7 +1,43 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(cd \"C:/Users/kypin/Documents/KAM_Sentinel\" && SET CI=true && .venv/Scripts/python test_kam.py 2>&1)",
+      "Bash(cd \"C:/Users/kypin/Documents/KAM_Sentinel\" && CI=true .venv/Scripts/python test_kam.py 2>&1)",
+      "Bash(cd \"C:/Users/kypin/Documents/KAM_Sentinel\" && .venv/Scripts/python -m PyInstaller \\\\\n  --name \"KAM_Sentinel\" \\\\\n  --onefile \\\\\n  --noconsole \\\\\n  --icon \"kam_sentinel.ico\" \\\\\n  --add-data \"dashboard.html;.\" \\\\\n  --add-data \"thresholds.py;.\" \\\\\n  --add-data \"kam_sentinel.ico;.\" \\\\\n  --hidden-import flask \\\\\n  --hidden-import psutil \\\\\n  --hidden-import wmi \\\\\n  --hidden-import GPUtil \\\\\n  launch.py 2>&1)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "Bash(cd \"C:/Users/kypin/Documents/KAM_Sentinel\" && git push origin main 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && .venv/Scripts/python -c \"import ast; ast.parse\\(open\\('server.py',encoding='utf-8'\\).read\\(\\)\\); print\\('SYNTAX OK'\\)\" 2>&1)",
+      "Bash(cat:*)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git push origin main && git tag v1.4.0 && git push origin v1.4.0 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git add dashboard.html && git commit -m \"$\\(cat <<'EOF'\nAdd What's New! first-run walkthrough for v1.4.0\n\n6-step modal walkthrough shown once per version \\(localStorage key\n'kam_whats_new_seen'\\). Covers: 404 fix, cross-platform support, lean\nrewrite, anonymous telemetry, proactive error tracking, Phase 1 complete.\n\nSkip button on every step, dots navigation, GOT IT to dismiss on final\nstep. Auto-shows 1.2s after dashboard loads, never shown again for same\nversion.\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git push origin main 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git add server.py dashboard.html launch.py version.json build_exe.bat && git commit -m \"$\\(cat <<'EOF'\nv1.4.2: Final release — version strings synced, 64/64 tests\n\nBump all version strings to 1.4.2 so compiled binary VER matches\nversion.json on main \\(prevents false update notification on fresh install\\).\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git push origin main && git tag v1.4.2 && git push origin v1.4.2 2>&1)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git add server.py && git commit -m \"$\\(cat <<'EOF'\nFix macOS CI: catch all exceptions in api_diagnostics GPU check\n\nGPUtil.getGPUs\\(\\) raises OSError \\(not ImportError\\) when nvidia-smi is\nmissing on macOS. Bare except ImportError let the exception leak to Flask,\nreturning 500 and failing the section 10 test on the macOS CI runner.\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git push origin main && git tag v1.4.3 && git push origin v1.4.3 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && python test_kam.py 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && CI=true python test_kam.py 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && python -c \"import server\" 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && python -c \"print\\('hello'\\); import sys; sys.stdout.flush\\(\\)\" 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && python -c \"\nimport sys\nsys.path.insert\\(0, '.'\\)\nexec\\(open\\('test_kam.py'\\).read\\(\\)[:500]\\)\n\" 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git rebase origin/main 2>&1)",
+      "Bash(cd /c/Users/kypin/Documents/KAM_Sentinel && git diff --name-only && git stash && git rebase origin/main 2>&1)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(rm:*)",
+      "Bash(gh issue:*)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(git:*)",
+      "Bash(python3:*)",
+      "Bash(CI=true python:*)"
     ]
   }
 }
