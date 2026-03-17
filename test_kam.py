@@ -1848,23 +1848,78 @@ try:
     else:
         fail(f"GET /api/forge/benchmark/gpu/history -> {_gbh.status_code}")
 
+    # POST /api/forge/benchmark/gpu/run -> 200 (started/tier) or 503 (exe not found) or 409
+    _runr = _c19.post('/api/forge/benchmark/gpu/run',
+                      data=_json19.dumps({'tier': 'standard'}),
+                      content_type='application/json')
+    _rund = _json19.loads(_runr.data)
+    if _runr.status_code in (200, 409, 503) and ('started' in _rund or 'error' in _rund):
+        ok(f"POST /api/forge/benchmark/gpu/run -> {_runr.status_code} (started|503 not found|409)")
+    else:
+        fail(f"POST /api/forge/benchmark/gpu/run -> {_runr.status_code} body={_rund}")
+
+    # POST /api/forge/benchmark/gpu/run -> 400 on bad tier
+    _badr = _c19.post('/api/forge/benchmark/gpu/run',
+                      data=_json19.dumps({'tier': 'turbo'}),
+                      content_type='application/json')
+    if _badr.status_code == 400:
+        ok("POST /api/forge/benchmark/gpu/run bad tier -> 400")
+    else:
+        fail(f"POST /api/forge/benchmark/gpu/run bad tier -> {_badr.status_code} (expected 400)")
+
+    # POST /api/forge/benchmark/gpu/abort -> 409 when nothing running
+    _abtr = _c19.post('/api/forge/benchmark/gpu/abort')
+    if _abtr.status_code == 409:
+        ok("POST /api/forge/benchmark/gpu/abort (nothing running) -> 409")
+    else:
+        fail(f"POST /api/forge/benchmark/gpu/abort -> {_abtr.status_code} (expected 409)")
+
+    # Static: new constants
+    for _const in ('GPU_BENCH_EXE_NAME', 'GPU_BENCH_PROGRESS_FILE', 'GPU_BENCH_RESULTS_FILE',
+                   '_gpu_real_proc_lock', '_find_gpu_bench_exe'):
+        if hasattr(_mod19, _const):
+            ok(f"server.py: {_const} present")
+        else:
+            fail(f"server.py: {_const} missing")
+
+    # Routes registered
+    for _rt in ('/api/forge/benchmark/gpu/run', '/api/forge/benchmark/gpu/abort'):
+        if any(_rt in u for u in _url_map19):
+            ok(f"server.py: {_rt} route registered")
+        else:
+            fail(f"server.py: {_rt} route NOT registered")
+
 except Exception as _e19:
     fail(f"§19 error: {_e19}")
 
 # -- Dashboard HTML checks --
 _html19 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html'), encoding='utf-8').read()
 _html19_checks = [
-    ('id="gpu-bench-btn"',          'GPU benchmark run button present'),
-    ('id="gpu-bench-status"',       'GPU benchmark status element present'),
-    ('id="gpu-bsr-compute"',        'GPU compute score display present'),
-    ('id="gpu-bsr-overall"',        'GPU overall score display present'),
-    ('id="gpu-bsr-overall-delta"',  'GPU overall score delta indicator present'),
-    ('id="gpu-bench-history"',      'GPU benchmark history panel present'),
-    ('id="gpu-bench-history-body"', 'GPU benchmark history table body present'),
-    ('runGpuBench',                 'runGpuBench() JS function present'),
-    ('_showGpuBenchResult',         '_showGpuBenchResult() JS function present'),
-    ('toggleGpuBenchHistory',       'toggleGpuBenchHistory() JS function present'),
-    ('GPU BENCHMARK',               'GPU BENCHMARK section label present'),
+    ('id="gpu-bench-btn"',           'GPU benchmark run button present'),
+    ('id="gpu-bench-status"',        'GPU benchmark status element present'),
+    ('id="gpu-bench-abort-btn"',     'GPU benchmark abort button present'),
+    ('id="gpu-bsr-compute"',         'GPU shader score display present'),
+    ('id="gpu-bsr-fill"',            'GPU fill rate score display present'),
+    ('id="gpu-bsr-overall"',         'GPU overall score display present'),
+    ('id="gpu-bsr-overall-delta"',   'GPU overall score delta indicator present'),
+    ('id="gpu-bench-history"',       'GPU benchmark history panel present'),
+    ('id="gpu-bench-history-body"',  'GPU benchmark history table body present'),
+    ('id="gpu-bench-telemetry"',     'GPU benchmark live telemetry panel present'),
+    ('id="gpu-bench-phase-bar"',     'GPU benchmark phase progress bar present'),
+    ('id="gpu-bench-overall-bar"',   'GPU benchmark overall progress bar present'),
+    ('id="gpu-bench-percentile"',    'GPU benchmark percentile display present'),
+    ('id="gpu-bench-export-btn"',    'GPU benchmark export button present'),
+    ('id="gpu-tier-quick"',          'GPU tier quick button present'),
+    ('id="gpu-tier-standard"',       'GPU tier standard button present'),
+    ('id="gpu-tier-extended"',       'GPU tier extended button present'),
+    ('runGpuBench',                  'runGpuBench() JS function present'),
+    ('abortGpuBench',                'abortGpuBench() JS function present'),
+    ('setGpuTier',                   'setGpuTier() JS function present'),
+    ('_showGpuBenchResult',          '_showGpuBenchResult() JS function present'),
+    ('_updateGpuBenchTelemetry',     '_updateGpuBenchTelemetry() JS function present'),
+    ('toggleGpuBenchHistory',        'toggleGpuBenchHistory() JS function present'),
+    ('exportGpuBenchResult',         'exportGpuBenchResult() JS function present'),
+    ('GPU BENCHMARK',                'GPU BENCHMARK section label present'),
 ]
 for _selector, _label in _html19_checks:
     if _selector in _html19:

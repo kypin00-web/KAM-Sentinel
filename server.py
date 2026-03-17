@@ -156,7 +156,7 @@ CRASH_LOG          = os.path.join(LOG_DIR, 'crashes.jsonl')
 CRASH_FLAG         = os.path.join(LOG_DIR, 'crash.flag')
 for d in (BACKUP_DIR, LOG_DIR, PROF_DIR): os.makedirs(d, exist_ok=True)
 
-VER               = '1.7.0'
+VER               = '1.7.1'
 UPDATE_CHECK_URL  = 'https://kypin00-web.github.io/KAM-Sentinel/version.json'
 TELEMETRY_URL     = ''   # POST endpoint for proactive install/error events
 
@@ -415,12 +415,23 @@ BENCH_FILE    = os.path.join(LOG_DIR, 'benchmarks.jsonl')
 _bench_lock   = threading.Lock()
 _bench_status = dict(running=False, step=None, run_id=None, result=None, noise_warn=False)
 
-# ── GPU benchmark state ────────────────────────────────────────────────────────
+# ── GPU benchmark state (legacy numpy bench) ──────────────────────────────────
 GPU_BENCH_DIR  = os.path.join(LOG_DIR, 'benchmarks')
 GPU_BENCH_FILE = os.path.join(GPU_BENCH_DIR, 'gpu_history.jsonl')
 os.makedirs(GPU_BENCH_DIR, exist_ok=True)
 _gpu_bench_lock   = threading.Lock()
 _gpu_bench_status = dict(running=False, step=None, run_id=None, result=None)
+
+# ── Real GPU stress test (KAM_GPU_Bench.exe subprocess) ───────────────────────
+import tempfile as _tempfile
+GPU_BENCH_EXE_NAME      = 'KAM_GPU_Bench.exe'
+GPU_BENCH_PROGRESS_FILE = os.path.join(_tempfile.gettempdir(), 'kam_bench_progress.json')
+GPU_BENCH_RESULTS_FILE  = os.path.join(_tempfile.gettempdir(), 'kam_bench_results.json')
+_gpu_real_proc_lock  = threading.Lock()
+_gpu_real_proc       = None   # subprocess.Popen or None
+_gpu_real_run_id     = None   # run ID of the active real bench
+_gpu_real_saved      = False  # whether this run's results were written to history
+_gpu_bench_abort_ids = set()  # run IDs where we already filed an Eve bug
 
 # ── Soft-changes rollback state ────────────────────────────────────────────────
 _soft_lock  = threading.Lock()
@@ -957,6 +968,23 @@ def _kill_bg_processes():
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
     return killed
+
+
+# ── Real GPU bench exe locator ─────────────────────────────────────────────────
+def _find_gpu_bench_exe():
+    """Return path to KAM_GPU_Bench.exe, or None if not found."""
+    if getattr(sys, 'frozen', False):
+        # Frozen: exe lives next to the main executable
+        return os.path.join(os.path.dirname(sys.executable), GPU_BENCH_EXE_NAME)
+    # Dev mode: check dist/ first, then script dir
+    for candidate in [
+        os.path.join(ASSET_DIR, GPU_BENCH_EXE_NAME),
+        os.path.join(os.path.dirname(__file__), 'dist', GPU_BENCH_EXE_NAME),
+        os.path.join(os.path.dirname(__file__), GPU_BENCH_EXE_NAME),
+    ]:
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 # ── GPU benchmark helpers ──────────────────────────────────────────────────────
@@ -2359,6 +2387,7 @@ def api_forge_rollback_instant():
 # ── GPU Benchmarking ───────────────────────────────────────────────────────────
 @app.route('/api/forge/benchmark/gpu', methods=['POST'])
 def api_forge_benchmark_gpu():
+    """Legacy numpy-based GPU bench (kept for backward compatibility)."""
     global _gpu_bench_status
     with _gpu_bench_lock:
         if _gpu_bench_status['running']:
@@ -2369,8 +2398,118 @@ def api_forge_benchmark_gpu():
     return jsonify(started=True, run_id=run_id)
 
 
+@app.route('/api/forge/benchmark/gpu/run', methods=['POST'])
+def api_forge_benchmark_gpu_run():
+    """Launch KAM_GPU_Bench.exe as a subprocess (real OpenGL stress test)."""
+    global _gpu_real_proc, _gpu_real_run_id, _gpu_real_saved
+    body = request.get_json(silent=True) or {}
+    tier = body.get('tier', 'standard')
+    if tier not in ('quick', 'standard', 'extended'):
+        return jsonify(error='tier must be quick|standard|extended'), 400
+
+    with _gpu_real_proc_lock:
+        if _gpu_real_proc and _gpu_real_proc.poll() is None:
+            return jsonify(error='GPU benchmark already running', running=True), 409
+
+        exe = _find_gpu_bench_exe()
+        if not exe:
+            return jsonify(error='KAM_GPU_Bench.exe not found — build or install required'), 503
+
+        run_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        _gpu_real_run_id = run_id
+        _gpu_real_saved  = False
+
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        try:
+            _gpu_real_proc = subprocess.Popen(
+                [exe, '--tier', tier, '--run-id', run_id],
+                creationflags=flags,
+            )
+        except Exception as exc:
+            _log_err('gpu_bench_launch', exc)
+            return jsonify(error=f'Failed to launch KAM_GPU_Bench.exe: {exc}'), 500
+
+    return jsonify(started=True, run_id=run_id, tier=tier)
+
+
+@app.route('/api/forge/benchmark/gpu/abort', methods=['POST'])
+def api_forge_benchmark_gpu_abort():
+    """Kill a running KAM_GPU_Bench.exe process."""
+    global _gpu_real_proc
+    with _gpu_real_proc_lock:
+        if not _gpu_real_proc or _gpu_real_proc.poll() is not None:
+            return jsonify(error='No real GPU benchmark is running'), 409
+        _gpu_real_proc.terminate()
+        try:
+            _gpu_real_proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _gpu_real_proc.kill()
+        _gpu_real_proc = None
+
+    # Mark progress file as aborted
+    try:
+        abort_prog = {
+            'phase': 'none', 'phase_progress': 0, 'overall_progress': 0,
+            'current_score': 0, 'peak_temp_c': None, 'avg_clock_mhz': None,
+            'fps': 0.0, 'elapsed_s': 0, 'status': 'aborted',
+            'abort_reason': 'User aborted',
+        }
+        with open(GPU_BENCH_PROGRESS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(abort_prog, f)
+    except Exception:
+        pass
+
+    return jsonify(aborted=True)
+
+
 @app.route('/api/forge/benchmark/gpu/status')
 def api_forge_benchmark_gpu_status():
+    """Return status — real bench (exe) if active, otherwise legacy bench."""
+    global _gpu_real_saved
+
+    with _gpu_real_proc_lock:
+        real_alive  = (_gpu_real_proc is not None and _gpu_real_proc.poll() is None)
+        real_run_id = _gpu_real_run_id
+
+    # If a real bench has run (or is running), return progress file
+    if real_run_id and os.path.exists(GPU_BENCH_PROGRESS_FILE):
+        try:
+            with open(GPU_BENCH_PROGRESS_FILE, encoding='utf-8') as f:
+                prog = json.load(f)
+            prog['real_bench'] = True
+            prog['running']    = real_alive
+            prog['run_id']     = real_run_id
+
+            # Persist completed results to history (once per run)
+            if not real_alive and prog.get('status') == 'complete' and not _gpu_real_saved:
+                try:
+                    with open(GPU_BENCH_RESULTS_FILE, encoding='utf-8') as rf:
+                        res = json.load(rf)
+                    res['run_id'] = real_run_id
+                    os.makedirs(GPU_BENCH_DIR, exist_ok=True)
+                    with open(GPU_BENCH_FILE, 'a', encoding='utf-8') as hf:
+                        hf.write(json.dumps(res) + '\n')
+                    _gpu_real_saved = True
+                    prog['result'] = res
+                except Exception as e:
+                    _log_err('gpu_bench_save_results', e)
+
+            # File Eve bug on thermal abort (once per run)
+            if (not real_alive and prog.get('status') == 'aborted'
+                    and prog.get('abort_reason')
+                    and real_run_id not in _gpu_bench_abort_ids):
+                _gpu_bench_abort_ids.add(real_run_id)
+                _write_bug_entry(
+                    trigger=f'gpu_bench_thermal_abort',
+                    fix='auto_abort',
+                    result=prog.get('abort_reason', 'thermal_abort'),
+                )
+
+            return jsonify(prog)
+        except Exception:
+            pass
+
+    # Fallback: legacy numpy bench status
     with _gpu_bench_lock:
         return jsonify(dict(_gpu_bench_status))
 

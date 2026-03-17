@@ -102,6 +102,10 @@ Your current version is untouched."
   ; Copy the main executable
   File "dist\KAM_Sentinel_Windows.exe"
 
+  ; Copy GPU stress test companion exe (optional — skip gracefully if not built)
+  IfFileExists "dist\KAM_GPU_Bench.exe" 0 +2
+    File "dist\KAM_GPU_Bench.exe"
+
   ; ── Unblock Mark of the Web ────────────────────────────────
   ; Files downloaded from the internet carry a Zone.Identifier ADS that
   ; causes Windows to block execution. Unblock immediately after extraction
@@ -159,6 +163,7 @@ Section "Uninstall"
 
   ; Remove files
   Delete "$INSTDIR\KAM_Sentinel_Windows.exe"
+  Delete "$INSTDIR\KAM_GPU_Bench.exe"
   Delete "$INSTDIR\Uninstall.exe"
 
   ; Remove shortcuts

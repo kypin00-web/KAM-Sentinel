@@ -1,9 +1,9 @@
 {
-  "version": "1.7.0",
-  "build": 42,
-  "date": "2026-03-12",
+  "version": "1.7.1",
+  "build": 43,
+  "date": "2026-03-17",
   "channel": "stable",
-  "changelog": "v1.6.9: LHM HTTP fallback \u2014 sensors work without admin if web server enabled",
+  "changelog": "v1.7.1: Real GPU stress test (KAM_GPU_Bench.exe) \u2014 ModernGL OpenGL, 3-phase benchmark",
   "download": {
     "windows": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Setup.exe",
     "windows_raw": "https://github.com/kypin00-web/KAM-Sentinel/releases/latest/download/KAM_Sentinel_Windows.exe",
