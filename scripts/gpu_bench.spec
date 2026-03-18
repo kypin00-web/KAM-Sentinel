@@ -9,14 +9,20 @@
 import os
 block_cipher = None
 
+# SPECPATH = directory of this spec file (scripts/).
+# All relative paths in Analysis() resolve to SPECPATH, not CWD.
+_icon = os.path.join(SPECPATH, '..', 'assets', 'icon.ico')
+
 a = Analysis(
-    [os.path.join('scripts', 'gpu_bench.py')],
-    pathex=['.'],
+    ['gpu_bench.py'],
+    pathex=[os.path.join(SPECPATH, '..')],
     binaries=[],
     datas=[],
     hiddenimports=[
         'moderngl',
         'moderngl.mgl',
+        'glcontext',
+        'glcontext.wgl',
     ],
     hookspath=[],
     hooksconfig={},
@@ -50,5 +56,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join('assets', 'icon.ico') if os.path.exists(os.path.join('assets', 'icon.ico')) else None,
+    icon=_icon if os.path.exists(_icon) else None,
 )
